@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import NavBar from "../components/nav-bar";
+import NavBar from "../components/ui/nav-bar";
+import { UserProvider } from "../providers/user-provider";
 import {
   agathoRegular,
   agathoLight,
@@ -23,8 +24,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html 
-      lang="en" 
+    <html
+      lang="en"
       className={`
         ${agathoRegular.variable} 
         ${agathoLight.variable} 
@@ -36,9 +37,10 @@ export default function RootLayout({
         ${agathoLightCaps.variable}
       `}
     >
-      <body className={`${agathoRegular.className} antialiased`}>
-        <NavBar/>
-        {children}
+      <body className="font-sans antialiased">
+        <UserProvider>
+          {children}
+        </UserProvider>
       </body>
     </html>
   );
