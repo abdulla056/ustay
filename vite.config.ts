@@ -1,4 +1,3 @@
-/// <reference types="vitest/config" />
 import tailwindcss from '@tailwindcss/vite';
 
 import { defineConfig } from 'vitest/config';
@@ -35,6 +34,8 @@ export default defineConfig({
 	],
 	test: {
 		expect: { requireAssertions: true },
+		// No tests exist yet; suites are added alongside components/stories in later work.
+		passWithNoTests: true,
 		projects: [
 			{
 				extends: './vite.config.ts',

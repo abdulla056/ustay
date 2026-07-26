@@ -1,6 +1,6 @@
 {
-  "name": "ustay",
-  "compatibility_date": "2026-07-25",
-  "compatibility_flags": ["nodejs_als"],
-  "pages_build_output_dir": ".svelte-kit/cloudflare"
+	"name": "ustay",
+	"compatibility_date": "2026-07-25",
+	"compatibility_flags": ["nodejs_als"],
+	"pages_build_output_dir": ".svelte-kit/cloudflare"
 }

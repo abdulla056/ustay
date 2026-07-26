@@ -1,9 +1,3 @@
-import { pgTable, serial, integer, text } from 'drizzle-orm/pg-core';
-
-export const task = pgTable('task', {
-	id: serial('id').primaryKey(),
-	title: text('title').notNull(),
-	priority: integer('priority').notNull().default(1)
-});
-
+// Application schema lives here. Auth tables are generated into auth.schema.ts
+// by `bun run auth:schema` and re-exported below.
 export * from './auth.schema';
