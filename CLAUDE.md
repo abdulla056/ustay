@@ -9,6 +9,20 @@
 Read [`PROJECT_CONTEXT.md`](./PROJECT_CONTEXT.md) for the product vision, goals, constraints, and
 design philosophy behind Ustay. Reference it when making product or design decisions.
 
+The locked visual + motion direction lives in [`DESIGN.md`](./DESIGN.md) — build all UI to it.
+
+## Development workflow (multi-session)
+
+Ustay is built across focused Claude Code sessions, one per Linear issue, coordinated by an
+orchestrator session. See [`docs/briefs/WORKFLOW.md`](./docs/briefs/WORKFLOW.md) for the model and
+`docs/briefs/UST-<n>.md` for per-issue briefs. House rules for any **work** session:
+
+- Branch `ust-<n>-<slug>` off `main`; **open a PR, don't merge** (the orchestrator/user merges).
+- Build to `DESIGN.md`. Validate every `.svelte` with the Svelte MCP autofixer.
+- Green gates before finishing: `bun run check`, `bun run lint`, `bun run test`.
+- Commit `UST-<n>: <summary>` + trailer `Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>`.
+- Update the Linear issue: In Progress at start, Done at end.
+
 ---
 
 You are able to use the Svelte MCP server, where you have access to comprehensive Svelte 5 and SvelteKit documentation. Here's how to use the available tools effectively:
