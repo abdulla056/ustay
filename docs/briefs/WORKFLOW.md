@@ -40,7 +40,8 @@ Linear: <url>
 
 ## Brief index
 
-- `UST-6.md` — Design tokens & Tailwind v4 theme  (next; blocks UST-7)
+- `UST-6.md` — Design tokens & Tailwind v4 theme  (**DONE + merged**, PR #1)
+- `UST-7.md` — Base UI component library in Storybook  (next; builds on UST-6 tokens)
 - `UST-8.md` — Database & Drizzle conventions  (parallel-safe)
-- `UST-9.md` — Project architecture & app packaging  (touches package.json — don't run at the
-  same time as UST-6, which also edits package.json/bun.lock)
+- `UST-9.md` — Project architecture & app packaging  (touches package.json/bun.lock — don't run at
+  the same time as another issue that edits deps)
