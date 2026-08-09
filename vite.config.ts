@@ -64,6 +64,14 @@ export default defineConfig({
 			{
 				extends: true,
 				plugins: [storybookTest({ configDir: path.join(dirname, '.storybook') })],
+				// `@storybook/addon-vitest`'s setup file pulls in `@testing-library/dom`,
+				// whose transitive deps (`aria-query`, `lz-string`) are CJS. Vite doesn't
+				// pre-bundle nested deps by default, so they get served raw and their
+				// named/default exports go missing at import time. Pre-bundling the whole
+				// chain converts them to ESM properly.
+				optimizeDeps: {
+					include: ['@testing-library/dom', 'aria-query', 'lz-string']
+				},
 				test: {
 					name: 'storybook',
 					browser: {
