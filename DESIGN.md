@@ -27,12 +27,21 @@ clutter competing with the photograph.
 | `ink` | `#0B0F0E` | near-black canvas (dark hero, footer), primary text on light |
 | `paper` | `#F4EFE6` | warm cream canvas for editorial sections |
 | `accent` | `#5C6B52` | muted forest/olive — labels, small accents, one word at a time |
-| `muted` | `#6B6F68` | secondary text on light |
+| `muted` | `#686C65` | secondary text on light |
 | `prose` | `#4A4D46` | body copy on light |
 | `on-dark` | `#FFFFFF` | text/UI over photography |
 | `hairline` | `rgba(11,15,14,.12)` | thin rules, dividers |
+| `accent-on-dark` | `#77876D` | `accent` lifted for the dark tone (5.0:1 on ink) |
+| `muted-on-dark` | `#9A9D97` | `muted` lifted for the dark tone (7.0:1 on ink) |
+| `prose-on-dark` | `#CFD2CB` | body copy on the dark tone |
 
 Colour is used sparingly. The **photography is the colour**; UI stays neutral so stays feel distinct.
+
+Contrast is part of the palette, not a later fix. The light-tone neutrals clear WCAG AA on `paper`
+— `muted` was nudged from `#6B6F68` (4.47:1, a hair short) to `#686C65` (4.68:1) in UST-7. Those
+same values fail badly on `ink` (`accent` is only 3.4:1 there), so the dark tone gets its own
+lifted set rather than reusing them. `<Section tone="inverse">` scopes which set is live, so no
+component ever picks a colour per tone.
 
 ## Type
 

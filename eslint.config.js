@@ -41,5 +41,13 @@ export default defineConfig(
 		// Override or add rule settings here, such as:
 		// 'svelte/button-has-type': 'error'
 		rules: {}
+	},
+	{
+		// The base UI primitives (Button, Link, Card) forward an `href` supplied by
+		// their consumer — they have no literal route to hand to `resolve()`, and
+		// resolving one is the caller's job. The rule still applies everywhere it can
+		// actually see a route: routes, sections, and pages.
+		files: ['src/lib/components/**/*.svelte'],
+		rules: { 'svelte/no-navigation-without-resolve': 'off' }
 	}
 );

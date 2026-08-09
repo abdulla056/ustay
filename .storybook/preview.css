@@ -1,0 +1,7 @@
+/* Storybook's canvas is a bare iframe rather than a page, so it never gets the
+   root layout's colour. Give it the light editorial tone by default — ink text on
+   whichever background is picked in the toolbar. Components that own a tone
+   (`<Section tone="inverse">`) still paint their own scope on top. */
+.sb-show-main {
+	color: var(--content);
+}

@@ -18,10 +18,18 @@
 	--color-ink: #0b0f0e; /* near-black canvas + primary text on light */
 	--color-paper: #f4efe6; /* warm cream editorial canvas */
 	--color-accent: #5c6b52; /* muted forest/olive — labels, one word at a time */
-	--color-muted: #6b6f68; /* secondary text on light */
+	--color-muted: #686c65; /* secondary text on light (AA-nudged, see below) */
 	--color-prose: #4a4d46; /* body copy on light */
 	--color-on-dark: #ffffff; /* text/UI over photography */
 	--color-hairline: rgba(11, 15, 14, 0.12); /* thin rules, dividers */
+
+	/* The same neutrals lifted for the dark tone. The light-tone values are far
+	   too dark on ink (`accent` on ink is only 3.4:1), so the inverse tone needs
+	   its own set — wired into `[data-tone='inverse']` below, never used raw. */
+	--color-accent-on-dark: #77876d; /* 5.0:1 on ink */
+	--color-muted-on-dark: #9a9d97; /* 7.0:1 on ink */
+	--color-prose-on-dark: #cfd2cb;
+	--color-hairline-on-dark: rgba(255, 255, 255, 0.14);
 
 	/* --- Type families -------------------------------------------------------
 	   Display: Fraunces (variable, optical sizing). Body/utility: Inter.
@@ -29,6 +37,15 @@
 	--font-display: 'Fraunces Variable', ui-serif, Georgia, 'Times New Roman', serif;
 	--font-body: 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
 	--font-sans: 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
+
+	/* --- Display weights (Fraunces variable weight axis) --------------------
+	   DESIGN.md: "weight 320–380 at large sizes". Named after the role rather
+	   than the number so the display face never gets a hard-coded weight.
+	   (Can't be called `--font-weight-display` — that would collide with the
+	   `font-display` family utility above.) */
+	--font-weight-editorial: 340; /* `font-editorial` — hero / closing display */
+	--font-weight-statement: 360; /* `font-statement` — section + statement display */
+	--font-weight-title: 440; /* `font-title` — small display (stay names) */
 
 	/* --- Editorial display scale (fluid) ------------------------------------
 	   Big, magazine-cover serif that bleeds off the edges. Sizes + line-heights
@@ -41,6 +58,8 @@
 	--text-display--line-height: 1;
 	--text-display-sm: clamp(1.9rem, 4.4vw, 3.6rem);
 	--text-display-sm--line-height: 1.08;
+	--text-display-xs: 1.3rem; /* smallest serif voice — stay names, card titles */
+	--text-display-xs--line-height: 1.25;
 
 	/* Editorial body + eyebrow/label sizes */
 	--text-lead: 1.1rem; /* lead prose */
@@ -65,9 +84,36 @@
 	   The generous page inset used everywhere in the prototype (`px-gutter`). */
 	--spacing-gutter: clamp(1.5rem, 5vw, 4.5rem);
 
+	/* Vertical rhythm for editorial sections (`py-section*`) — generous, so
+	   sections breathe the way the prototype's do. */
+	--spacing-section: clamp(5rem, 12vh, 9rem);
+	--spacing-section-lg: clamp(6rem, 16vh, 12rem);
+	--spacing-section-sm: clamp(3rem, 8vh, 6rem);
+
+	/* Grid gutters (`gap-grid`, `gap-grid-tight`) — cards vs. gallery frames. */
+	--spacing-grid: clamp(1rem, 2.5vw, 2rem);
+	--spacing-grid-tight: clamp(0.6rem, 1.5vw, 1.2rem);
+
+	/* Icons scale with their text, never with a pixel box (`size-icon`). */
+	--spacing-icon: 1em;
+
+	/* Optical side-bearing correction for oversized display type — `-ml-optical`
+	   pulls the first glyph out to the true edge so the type bleeds properly. */
+	--spacing-optical: 0.04em;
+
+	/* --- Measure -------------------------------------------------------------
+	   Line length is a type decision, so it gets tokens (`max-w-measure`). */
+	--container-measure: 52ch; /* editorial body copy */
+	--container-measure-tight: 34ch; /* hero sub-copy, captions */
+
 	/* --- Elevation -----------------------------------------------------------
 	   Shadows stay barely-there; depth comes from the photography, not chrome. */
 	--shadow-frame: 0 1px 2px rgba(11, 15, 14, 0.04), 0 12px 34px rgba(11, 15, 14, 0.08);
+
+	/* --- Easing --------------------------------------------------------------
+	   "The easing is the brand" (DESIGN.md) — slow, weighted, never bouncy.
+	   `ease-editorial` is the one curve UI state changes should use. */
+	--ease-editorial: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 /* =============================================================================
@@ -85,28 +131,36 @@
 	--color-content-muted: var(--content-muted);
 	--color-content-prose: var(--content-prose);
 	--color-content-on-inverse: var(--content-on-inverse);
+	--color-accent-c: var(--accent);
 	--color-hairline-c: var(--hairline);
 }
 
-:root {
-	/* Light (default) */
+:root,
+[data-tone='light'] {
+	/* Light (default) — the warm paper editorial tone */
 	--surface: var(--color-paper);
 	--surface-inverse: var(--color-ink);
 	--content: var(--color-ink);
 	--content-muted: var(--color-muted);
 	--content-prose: var(--color-prose);
 	--content-on-inverse: var(--color-on-dark);
+	--accent: var(--color-accent);
 	--hairline: var(--color-hairline);
 }
 
-/* Future dark / property presets — override the semantic vars only, e.g.:
-   [data-theme='dark'] {
-       --surface: var(--color-ink);
-       --surface-inverse: var(--color-paper);
-       --content: var(--color-on-dark);
-       --content-muted: #9a9d97;
-       --content-prose: #cfd2cb;
-       --content-on-inverse: var(--color-ink);
-       --hairline: rgba(255, 255, 255, 0.14);
-   }
-*/
+/* The dark cinematic tone as a *scope*, not a page mode. `<Section tone="inverse">`
+   stamps `data-tone="inverse"`, which re-points the semantic vars — so `bg-surface`,
+   `text-content`, `text-content-muted` and `text-accent-c` all keep meaning "the
+   right value for this tone". Components therefore never branch on tone themselves,
+   and the dark→light tonal scroll of DESIGN.md is a matter of which scope you're in.
+   The same hook takes a future `[data-theme]` property preset. */
+[data-tone='inverse'] {
+	--surface: var(--color-ink);
+	--surface-inverse: var(--color-paper);
+	--content: var(--color-on-dark);
+	--content-muted: var(--color-muted-on-dark);
+	--content-prose: var(--color-prose-on-dark);
+	--content-on-inverse: var(--color-ink);
+	--accent: var(--color-accent-on-dark);
+	--hairline: var(--color-hairline-on-dark);
+}
