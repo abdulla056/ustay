@@ -45,4 +45,4 @@ Linear: <url>
 - `UST-8.md` — Database & Drizzle conventions (**DONE + merged**, PR #2 → `docs/DATABASE.md` + `src/lib/server/db/helpers.ts`)
 - `UST-9.md` — Project architecture & app packaging (touches package.json/bun.lock — don't run at
   the same time as another issue that edits deps)
-- `UST-40.md` — CI workflow: check/lint/test on every PR (parallel-safe; only adds `.github/`)
+- `UST-40.md` — CI workflow: check/lint/test on every PR (**DONE + merged**, PR #5 → `.github/workflows/ci.yml`)
