@@ -6,7 +6,7 @@ Gathering happened mostly in chat, so this folder is the distilled record.
 ## What's here
 
 - **`SHORTLIST.md`** — the reference picks that decided the direction, each annotated with the
-  *specific move* liked. This is the source of truth for taste.
+  _specific move_ liked. This is the source of truth for taste.
 - **`MOTION.md`** — motion references and the derived motion principles ("the easing is the brand").
 - **`CURATED.md`** — the broader curated set of boutique-hospitality / editorial references (UST-33).
 - **`full-site/`** — saved screenshots of the four shortlisted layouts (Woodvelly, Lunara,
