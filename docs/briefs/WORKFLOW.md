@@ -13,6 +13,8 @@ and the code are all loaded in any session opened in this folder — so briefs s
 ## House rules (every worker session)
 
 - Stack: SvelteKit (Svelte 5 runes), TypeScript, Tailwind v4, **bun**.
+- Fresh checkout/worktree setup: `bun install`, `bunx playwright install chromium` (browser-mode
+  tests), and copy `.env.example` → `.env` (`hooks.server.ts` 500s without `DATABASE_URL`).
 - Build to `DESIGN.md` exactly. Validate every `.svelte` with the Svelte MCP autofixer.
 - Green gates before finishing: `bun run check`, `bun run lint`, `bun run test`.
 - Branch `ust-<n>-<slug>` off latest `main`.
@@ -46,4 +48,4 @@ Linear: <url>
 - `UST-9.md` — Project architecture & app packaging (**DONE + merged**, PR #6 → `docs/ARCHITECTURE.md`, app-shaped package.json, 4 route groups)
 - `UST-40.md` — CI workflow: check/lint/test on every PR (**DONE + merged**, PR #5 → `.github/workflows/ci.yml`)
 - `UST-45.md` — Motion utility layer, Lenis + GSAP in `src/lib/motion/` (no dep changes — gsap/lenis already installed)
-- `UST-47.md` — Rebuild `/tokens` on the primitives + fix inverse accent contrast (parallel-safe with UST-45)
+- `UST-47.md` — Rebuild `/tokens` on the primitives + fix inverse accent contrast (**DONE + merged**, PR #7; API gaps → UST-50)
