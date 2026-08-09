@@ -7,12 +7,18 @@
 		title: 'Typography/Heading',
 		component: Heading,
 		tags: ['autodocs'],
-		args: { level: 2, size: 'md', tone: 'inherit', bleed: false },
+		args: { level: 2, as: undefined, size: 'md', tone: 'inherit', bleed: false },
 		argTypes: {
 			level: {
 				control: 'inline-radio',
 				options: [1, 2, 3, 4, 5, 6],
-				description: 'Document outline only — independent of `size`'
+				description: 'Document outline only — independent of `size`. Ignored when `as` is set.'
+			},
+			as: {
+				control: 'select',
+				options: [undefined, 'p', 'div'],
+				description:
+					'Opt out of the outline: renders `p`/`div` and drops `level`. For display type that is not a section heading. Default is `h{level}`.'
 			},
 			size: {
 				control: 'select',
@@ -52,15 +58,34 @@
 	{/snippet}
 </Story>
 
+<!-- The samples are specimens of the type, not headings of anything, so they take
+     `as="p"` — five `h2`s all reading "Every stay has a story." would be five
+     bogus rungs on this page's outline. -->
 <Story name="Scale">
 	{#snippet template()}
 		<div class="flex flex-col gap-12">
 			{#each scale as step (step.size)}
 				<div>
 					<Text size="sm" tone="muted" class="mb-3">{step.note}</Text>
-					<Heading level={2} size={step.size}>Every stay has a story.</Heading>
+					<Heading as="p" size={step.size}>Every stay has a story.</Heading>
 				</div>
 			{/each}
+		</div>
+	{/snippet}
+</Story>
+
+<!-- `as` is the escape hatch out of the outline: `as="p"` (or `"div"`) renders the
+     Fraunces display voice as a non-heading and drops `level` entirely. Use it for
+     type specimens, pull statements and decorative display lines — anything a
+     screen-reader user should not land on when skimming the page by heading.
+     `level` still owns semantics whenever `as` is absent, so the three axes never
+     fight: `size` is optics, `level` is outline position, `as` is whether there is
+     an outline entry at all. -->
+<Story name="Outside the outline" args={{ as: 'p', size: 'sm' }}>
+	{#snippet template(args)}
+		<div class="flex flex-col gap-4">
+			<Text size="sm" tone="muted">A pull statement — display type, no outline entry</Text>
+			<Heading {...args}>A listing shows you a room.</Heading>
 		</div>
 	{/snippet}
 </Story>

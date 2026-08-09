@@ -13,6 +13,29 @@ describe('/tokens', () => {
 		expect(screen.container.querySelectorAll('[style]')).toHaveLength(0);
 	});
 
+	// UST-50: the numbered spine label is each band's heading, so it renders as
+	// `Label as="h2"`. Before that, `Label` could only be a `p`/`span`/`div` and the
+	// page had to pin an `id` on the label and point the band's `aria-labelledby` at
+	// it — a named region with no heading in the outline at all.
+	it('builds its outline out of the primitives — an h2 per band, no skipped levels', async () => {
+		const screen = await render(Page);
+
+		const levels = [...screen.container.querySelectorAll('h1, h2, h3, h4, h5, h6')].map((h) =>
+			Number(h.tagName[1])
+		);
+
+		expect(levels.filter((level) => level === 1)).toHaveLength(1);
+		// One per numbered band, 01–07.
+		expect(screen.container.querySelectorAll('h2')).toHaveLength(7);
+
+		// Type specimens take `Heading as="p"`, so no decorative display line claims a
+		// rung and the outline only ever steps down one level at a time.
+		levels.slice(1).forEach((level, i) => expect(level - levels[i]).toBeLessThanOrEqual(1));
+
+		// And the workaround the gap forced is gone.
+		expect(screen.container.querySelectorAll('[aria-labelledby]')).toHaveLength(0);
+	});
+
 	it('resolves its inverse accent through a tone scope, not a hard-coded colour', async () => {
 		const screen = await render(Page);
 

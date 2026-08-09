@@ -14,7 +14,7 @@
 				control: 'inline-radio',
 				options: ['solid', 'paper', 'outline', 'ghost'],
 				description:
-					'solid = tone-aware filled chip · paper = always cream (over photography) · outline = currentColor hairline · ghost = borderless'
+					'solid = tone-aware filled chip · paper = **always** cream, for CTAs over photography — near-invisible on a paper surface *by design*, use solid there · outline = currentColor hairline · ghost = borderless'
 			},
 			size: { control: 'inline-radio', options: ['sm', 'md'] },
 			href: { control: 'text', description: 'Present ⇒ renders an <a> instead of a <button>' },
@@ -59,6 +59,38 @@
 			/>
 			<div class="absolute inset-0 flex items-end p-8">
 				<Button {...args}>Explore stays</Button>
+			</div>
+		</div>
+	{/snippet}
+</Story>
+
+<!-- The trap, on purpose. `variant="paper"` is fixed cream fill + ink text, because
+     it exists for CTAs sitting on photography where there is no tonal scope to
+     inherit. It is the one variant that ignores the tone scope — so put it on a
+     paper surface and the fill matches the canvas: the chip looks like it lost its
+     styling. That is expected, not a rendering bug. On paper reach for `solid`,
+     which flips per tone (ink chip on paper, paper chip on ink) by itself. -->
+<Story name="Paper — the trap on a paper surface">
+	{#snippet template()}
+		<div class="flex flex-col gap-4">
+			<Text size="sm" tone="muted">
+				On paper, `paper` disappears into the canvas — by design. Use `solid` here.
+			</Text>
+			<div class="flex flex-wrap items-center gap-4">
+				<Button variant="paper">paper — vanishes</Button>
+				<Button variant="solid">solid — the paper-surface CTA</Button>
+			</div>
+			<Text size="sm" tone="muted" class="mt-4">Where `paper` belongs: over an image.</Text>
+			<div class="relative w-fit overflow-hidden rounded-frame">
+				<img
+					src="/prototype/hero-forest.jpg"
+					alt=""
+					class="h-40 w-80 object-cover"
+					loading="lazy"
+				/>
+				<div class="absolute inset-0 flex items-end p-6">
+					<Button variant="paper" size="sm">Explore stays</Button>
+				</div>
 			</div>
 		</div>
 	{/snippet}

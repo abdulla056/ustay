@@ -7,6 +7,10 @@
 	//             in an inverse section. The default primary CTA.
 	//   paper   — always warm-cream fill + ink text. For CTAs over photography, where
 	//             there is no tonal scope to inherit from (the hero "Explore stays").
+	//             It is the one variant that ignores the tone scope, which is exactly
+	//             why it looks broken in the wrong place: on a paper surface it is
+	//             cream-on-cream and reads as an unstyled chip. Not a bug — put it on
+	//             an image, and use `solid` on paper (it already flips per tone).
 	//   outline — 1px currentColor hairline on transparent (the nav "Reserve ↗").
 	//   ghost   — no border, a whisper of tint on hover.
 	//
@@ -17,6 +21,14 @@
 
 	type Props = HTMLButtonAttributes &
 		HTMLAnchorAttributes & {
+			/**
+			 * `solid` is the default primary CTA and is tone-aware.
+			 *
+			 * ⚠️ `paper` is **always** cream fill + ink text — it is for CTAs over
+			 * photography and ignores the surrounding tone scope. On a paper surface
+			 * it is cream-on-cream, i.e. all but invisible. That is by design, not a
+			 * rendering bug; reach for `solid` there.
+			 */
 			variant?: 'solid' | 'paper' | 'outline' | 'ghost';
 			size?: 'sm' | 'md';
 			/** Present ⇒ renders an `<a>` instead of a `<button>`. */

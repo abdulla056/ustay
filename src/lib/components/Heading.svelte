@@ -4,14 +4,25 @@
 	// still be an `h2`. Weights come from the named display-weight tokens (340/360/440
 	// on the variable axis), which is what keeps the serif elegant rather than bold.
 	//
+	// The third axis is whether the line belongs in the outline at all: `as="p"`
+	// keeps the display voice and gives up the heading semantics, for specimens and
+	// pull statements. Voice, optics and outline, each on their own prop.
+	//
 	// `<em>` inside a heading renders italic Fraunces — the calligraphic accent word
 	// ("has a *story*") from DESIGN.md's signature elements.
 	import type { Snippet } from 'svelte';
 	import type { HTMLAttributes } from 'svelte/elements';
 
 	type Props = HTMLAttributes<HTMLHeadingElement> & {
-		/** Renders `h1`–`h6`. Semantics only. */
+		/** Renders `h1`–`h6`. Semantics only. Ignored when `as` is set. */
 		level?: 1 | 2 | 3 | 4 | 5 | 6;
+		/**
+		 * Escape hatch out of the outline: renders `p`/`div` and drops `level`
+		 * entirely. For display type that is not a section heading — type
+		 * specimens, pull statements, decorative lines — so it stops claiming a
+		 * rung on the document outline that screen-reader users then navigate to.
+		 */
+		as?: 'p' | 'div';
 		/** Optical scale: `xl` hero → `xs` stay name. */
 		size?: 'xl' | 'lg' | 'md' | 'sm' | 'xs';
 		/** `inherit` keeps the surrounding colour (e.g. over photography). */
@@ -23,6 +34,7 @@
 
 	let {
 		level = 2,
+		as,
 		size = 'md',
 		tone = 'inherit',
 		bleed = false,
@@ -47,7 +59,7 @@
 </script>
 
 <svelte:element
-	this={`h${level}`}
+	this={as ?? `h${level}`}
 	{...rest}
 	class={[
 		'font-display tracking-display text-balance [&_em]:italic',
