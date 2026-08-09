@@ -32,6 +32,7 @@ export type MotionApi = {
 };
 
 let api: Promise<MotionApi> | undefined;
+let resolved: MotionApi | undefined;
 let easeName: string = FALLBACK_EASE;
 
 /**
@@ -55,9 +56,19 @@ export function loadMotion(): Promise<MotionApi> {
 		const { ScrollTrigger } = scrollTrigger;
 		gsap.registerPlugin(ScrollTrigger, customEase.CustomEase);
 		registerEditorialEase(customEase.CustomEase);
-		return { gsap, ScrollTrigger };
+		resolved = { gsap, ScrollTrigger };
+		return resolved;
 	})();
 	return api;
+}
+
+/**
+ * GSAP **if it is already here**, without triggering the import. For code that
+ * wants to nudge an existing animation setup (`refreshMotion` after a client-side
+ * navigation) but must not be the reason a reduced-motion visitor downloads GSAP.
+ */
+export function loadedMotion(): MotionApi | undefined {
+	return resolved;
 }
 
 /**

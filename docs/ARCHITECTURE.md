@@ -84,9 +84,9 @@ test` and still fail `bun run build`. `bun run build` is the real check.
 ### `components/` vs `features/`
 
 `$lib/components/` holds the primitives from UST-7 — `Container`, `Section`, `Grid`, `Stack`,
-`Heading`, `Text`, `Eyebrow`, `Label`, `Button`, `Link`, `Badge`, `Card`, `Image`, `Icon`. A
-component belongs there only if it knows **nothing** about Ustay's domain: no property, no booking,
-no host. It is styled purely from the UST-6 tokens, is deliberately static (the motion layer wraps
+`Heading`, `Text`, `Eyebrow`, `Label`, `Button`, `Link`, `Badge`, `Card`, `Image`, `Icon` — plus the
+chrome from UST-46, `Nav` and `Wordmark`. A component belongs there only if it knows **nothing**
+about Ustay's domain: no property, no booking, no host. It is styled purely from the UST-6 tokens, is deliberately static (the motion layer wraps
 it), and it ships with a `.stories.svelte` next to it. Add it to `src/lib/index.ts`.
 
 Anything that knows what a property is — `PropertyCard`, `RoomList`, `BookingRequestForm`, a
