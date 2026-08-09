@@ -236,10 +236,23 @@ authorise against that row.
 
 ## Authorisation
 
-`hooks.server.ts` already puts `locals.user` / `locals.session` on every request. Route protection
-belongs **there**, keyed on the pathname prefix — not in a group's `+layout.server.ts`. A layout
-`load` does not run before a form action, so a layout-only guard leaves every `POST` in the subtree
-open while looking secure. Guard the subtree in `handle`; let layouts load the user for rendering.
+`hooks.server.ts` puts `locals.user` / `locals.session` (either or both `null`) on every request.
+Route protection belongs **there**, keyed on the route group — not in a group's
+`+layout.server.ts`. A layout `load` does not run before a form action, so a layout-only guard
+leaves every `POST` in the subtree open while looking secure. Guard the subtree in `handle`; let
+layouts load the user for rendering.
+
+The decision itself is a pure function, `guardRoute()` in `$lib/server/auth-guard.ts`: it takes
+`event.route.id` plus "is there a session" and returns allow-or-redirect, so the whole boundary is
+unit-tested with no database (`auth-guard.test.ts`). `handle` only turns that into `redirect()`.
+Adding a protected group means adding it to that module's group list, not writing a new guard.
+
+- `(dashboard)` without a session → `303` to `/sign-in?redirectTo=<intended path>`. 303 so a blocked
+  form `POST` is replayed as a `GET`. `redirectTo` is validated to be a same-origin path by
+  `toLocalPath()` — re-validate it with the same helper wherever it is read back.
+- `(auth)` with a session → `303` to `/dashboard`. Everything else is public.
+- better-auth's `svelteKitHandler` runs first in the `sequence()`, so `/api/auth/*` is answered
+  before our session lookup and guard ever run.
 
 Ownership checks (this host owns this property) are per-row, so they live in the service or action
 that touches the row, after the row is fetched.
