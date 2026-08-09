@@ -34,8 +34,8 @@ bun run db:push
 bun run dev --open
 ```
 
-Two dev-only pages are worth opening: `/prototype` (the art-direction prototype) and `/tokens` (the
-design-token showcase).
+Three dev-only pages are worth opening: `/prototype` (the art-direction prototype), `/tokens` (the
+design-token showcase) and `/motion` (the Lenis + GSAP motion layer, on the primitives).
 
 ### Environment
 
