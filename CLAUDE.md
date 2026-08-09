@@ -11,6 +11,14 @@ design philosophy behind Ustay. Reference it when making product or design decis
 
 The locked visual + motion direction lives in [`DESIGN.md`](./DESIGN.md) — build all UI to it.
 
+## Conventions
+
+- [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) — where code lives: the `$lib` layout, the
+  `$lib/server` trust boundary, route groups, request flow, and data-access/repository conventions.
+  Read before adding a route, a component, or a query.
+- [`docs/DATABASE.md`](./docs/DATABASE.md) — Drizzle + Postgres conventions: ids, naming, slugs,
+  shared columns, and the `db:push` vs `db:generate` migration workflow. Read before adding a table.
+
 ## Development workflow (multi-session)
 
 Ustay is built across focused Claude Code sessions, one per Linear issue, coordinated by an
