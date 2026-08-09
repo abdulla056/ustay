@@ -50,5 +50,5 @@ Linear: <url>
 - `UST-45.md` — Motion utility layer, Lenis + GSAP in `src/lib/motion/` (**DONE + merged**, PR #8 → attachments + `/motion` demo; follow-ups UST-51…54)
 - `UST-47.md` — Rebuild `/tokens` on the primitives + fix inverse accent contrast (**DONE + merged**, PR #7; API gaps → UST-50)
 - `UST-46.md` — Nav + wordmark + motion wired into `(platform)` layout (also closes UST-51; owns `src/lib/index.ts` this wave)
-- `UST-50.md` — Primitive API refinements from dogfooding (edits existing component files only)
+- `UST-50.md` — Primitive API refinements from dogfooding (**DONE + merged**, PR #10 → `Label`/`Heading` `as` props, gap seam; round 2 → UST-58)
 - `UST-49.md` — Auth route protection in `hooks.server.ts` (**DONE + merged**, PR #9 → `guardRoute()` + typed locals; follow-ups UST-55…57)
