@@ -57,8 +57,11 @@ Copy `.env.example` to `.env` and adjust as needed. Before any non-local use, re
 
 ## Database
 
-Schema is defined with Drizzle in `src/lib/server/db/`. After changing the auth config in
-`src/lib/server/auth.ts`, regenerate the auth schema and push:
+Schema is defined with Drizzle in `src/lib/server/db/`. Conventions — id strategy, naming, slugs,
+and the `db:push` vs `db:generate` migration workflow — are documented in
+[`docs/DATABASE.md`](./docs/DATABASE.md); read it before adding a table.
+
+After changing the auth config in `src/lib/server/auth.ts`, regenerate the auth schema and push:
 
 ```sh
 bun run auth:schema
