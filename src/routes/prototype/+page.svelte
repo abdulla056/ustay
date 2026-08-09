@@ -92,7 +92,12 @@
 					{
 						scale: zoomScales[i],
 						ease: 'none',
-						scrollTrigger: { trigger: '.zoomp', start: 'top top', end: 'bottom bottom', scrub: true }
+						scrollTrigger: {
+							trigger: '.zoomp',
+							start: 'top top',
+							end: 'bottom bottom',
+							scrub: true
+						}
 					}
 				);
 			});
@@ -184,25 +189,37 @@
 	<section class="zoomp" aria-label="A few frames">
 		<div class="zoomp__stage">
 			<div class="zoomp__item zoomp__item--1">
-				<div class="zoomp__frame"><img src="/prototype/hero-forest.jpg" alt="Forest cabin in mist" /></div>
+				<div class="zoomp__frame">
+					<img src="/prototype/hero-forest.jpg" alt="Forest cabin in mist" />
+				</div>
 			</div>
 			<div class="zoomp__item zoomp__item--2">
-				<div class="zoomp__frame"><img src="/prototype/lake-mountain.jpg" alt="Mountain lake" /></div>
+				<div class="zoomp__frame">
+					<img src="/prototype/lake-mountain.jpg" alt="Mountain lake" />
+				</div>
 			</div>
 			<div class="zoomp__item zoomp__item--3">
-				<div class="zoomp__frame"><img src="/prototype/misty-lake.jpg" alt="Misty lake at dawn" /></div>
+				<div class="zoomp__frame">
+					<img src="/prototype/misty-lake.jpg" alt="Misty lake at dawn" />
+				</div>
 			</div>
 			<div class="zoomp__item zoomp__item--4">
-				<div class="zoomp__frame"><img src="/prototype/forest-light.jpg" alt="Light through the forest" /></div>
+				<div class="zoomp__frame">
+					<img src="/prototype/forest-light.jpg" alt="Light through the forest" />
+				</div>
 			</div>
 			<div class="zoomp__item zoomp__item--5">
-				<div class="zoomp__frame"><img src="/prototype/sun-trees.jpg" alt="Sun through trees" /></div>
+				<div class="zoomp__frame">
+					<img src="/prototype/sun-trees.jpg" alt="Sun through trees" />
+				</div>
 			</div>
 			<div class="zoomp__item zoomp__item--6">
 				<div class="zoomp__frame"><img src="/prototype/foggy-forest.jpg" alt="Foggy forest" /></div>
 			</div>
 			<div class="zoomp__item zoomp__item--7">
-				<div class="zoomp__frame"><img src="/prototype/lake-mountain.jpg" alt="Mountain lake reflection" /></div>
+				<div class="zoomp__frame">
+					<img src="/prototype/lake-mountain.jpg" alt="Mountain lake reflection" />
+				</div>
 			</div>
 		</div>
 	</section>

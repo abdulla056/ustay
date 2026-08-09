@@ -4,15 +4,16 @@ Your ~8 favorites, each with **one sentence naming the specific move you like** 
 not "nice," but the actual thing: "type is huge but the layout stays calm,"
 "coordinates in the corner," "photo bleeds off the edge."
 
-The *why* is what becomes direction. Fill this in after gathering.
+The _why_ is what becomes direction. Fill this in after gathering.
 
 ---
 
 ## 1. Woodvelly (concept) — `full-site/woodvelly-cinematic-hero.png`
+
 - **Link/file:** references/full-site/woodvelly-cinematic-hero.png
-- **What I like (the specific move):** Full-bleed *cinematic* hero photo fills the whole
+- **What I like (the specific move):** Full-bleed _cinematic_ hero photo fills the whole
   viewport on load — the picture lands first, motion carries you down from there. Oversized,
-  light-weight sans headline sits *over* the image, with one word ("Nature's") greyed back
+  light-weight sans headline sits _over_ the image, with one word ("Nature's") greyed back
   so the line has rhythm. A single warm note (the glowing cabin windows) against an otherwise
   cool, moody palette. And crucially: a glassy dark booking card floats over the photo, so the
   editorial mood and the actual booking product coexist on one screen with no hard section break.
@@ -20,10 +21,11 @@ The *why* is what becomes direction. Fill this in after gathering.
   editorial + booking coexisting
 
 ## 2. Lunara / "LUNAR." eco-resort (Dribbble, growmelab) — `full-site/lunara-eco-resort.png`
+
 - **Link/file:** references/full-site/lunara-eco-resort.png · https://dribbble.com/shots/26863754-Resort-Booking-Website
 - **What I like (the specific move):** Same immersive full-bleed nature hero, but the type is a
   high-contrast **elegant serif** with expressive ligatures — reads more literary/editorial than
-  Woodvelly. A small **photo inset shaped into a pill/lozenge sits *inside* the headline** ("PEACE.
+  Woodvelly. A small **photo inset shaped into a pill/lozenge sits _inside_ the headline** ("PEACE.
   ⬭ AWAKEN"). Editorial signature moves below the fold: an **olive-green accent word** ("ROOTED IN
   NATURE"), **corner bracket marks** framing content, and small **bracketed labels** ("[Built with
   intention]"). Serene/light rather than moody-dark.
@@ -31,6 +33,7 @@ The *why* is what becomes direction. Fill this in after gathering.
   corner brackets + bracketed labels · light & airy (not moody)
 
 ## 3. Villa Embrace — St. Barths (Dribbble, dwipoprawiro) — `full-site/villa-embrace-dark-editorial.png`
+
 - **Link/file:** references/full-site/villa-embrace-dark-editorial.png · https://dribbble.com/shots/16751922-Hotel-Resort-Booking-Landing-Page-Exploration
 - **What I like (the specific move):** Fully **dark** editorial luxury — a near-black canvas lets
   cinematic dusk photography glow. **Elegant serif everywhere**, with big section titles ("THE VILLA
@@ -40,6 +43,7 @@ The *why* is what becomes direction. Fill this in after gathering.
 - **Tags:** dark editorial · elegant serif · carousel/slider sections · quiet luxury
 
 ## 4. The Asteren — Luxury Resort (Dribbble, abdanbagus) — `full-site/asteren-editorial.png`
+
 - **Link/file:** references/full-site/asteren-editorial.png · https://dribbble.com/shots/27404369-The-Asteren-Luxury-Resort-Website
 - **What I like (the specific move):** The most **editorial/magazine** of the set. A **calligraphic
   high-contrast serif** wordmark ("The Asteren," with swash italic T & A) that bleeds huge across the
@@ -51,18 +55,22 @@ The *why* is what becomes direction. Fill this in after gathering.
   light editorial body · warm neutrals + tiny green accent
 
 ## 5.
+
 - **Link/file:**
 - **What I like (the specific move):**
 
 ## 6.
+
 - **Link/file:**
 - **What I like (the specific move):**
 
 ## 7.
+
 - **Link/file:**
 - **What I like (the specific move):**
 
 ## 8.
+
 - **Link/file:**
 - **What I like (the specific move):**
 

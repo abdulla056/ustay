@@ -22,18 +22,18 @@ clutter competing with the photograph.
 
 ## Palette
 
-| Token | Hex | Role |
-| --- | --- | --- |
-| `ink` | `#0B0F0E` | near-black canvas (dark hero, footer), primary text on light |
-| `paper` | `#F4EFE6` | warm cream canvas for editorial sections |
-| `accent` | `#5C6B52` | muted forest/olive — labels, small accents, one word at a time |
-| `muted` | `#686C65` | secondary text on light |
-| `prose` | `#4A4D46` | body copy on light |
-| `on-dark` | `#FFFFFF` | text/UI over photography |
-| `hairline` | `rgba(11,15,14,.12)` | thin rules, dividers |
-| `accent-on-dark` | `#77876D` | `accent` lifted for the dark tone (5.0:1 on ink) |
-| `muted-on-dark` | `#9A9D97` | `muted` lifted for the dark tone (7.0:1 on ink) |
-| `prose-on-dark` | `#CFD2CB` | body copy on the dark tone |
+| Token            | Hex                  | Role                                                           |
+| ---------------- | -------------------- | -------------------------------------------------------------- |
+| `ink`            | `#0B0F0E`            | near-black canvas (dark hero, footer), primary text on light   |
+| `paper`          | `#F4EFE6`            | warm cream canvas for editorial sections                       |
+| `accent`         | `#5C6B52`            | muted forest/olive — labels, small accents, one word at a time |
+| `muted`          | `#686C65`            | secondary text on light                                        |
+| `prose`          | `#4A4D46`            | body copy on light                                             |
+| `on-dark`        | `#FFFFFF`            | text/UI over photography                                       |
+| `hairline`       | `rgba(11,15,14,.12)` | thin rules, dividers                                           |
+| `accent-on-dark` | `#77876D`            | `accent` lifted for the dark tone (5.0:1 on ink)               |
+| `muted-on-dark`  | `#9A9D97`            | `muted` lifted for the dark tone (7.0:1 on ink)                |
+| `prose-on-dark`  | `#CFD2CB`            | body copy on the dark tone                                     |
 
 Colour is used sparingly. The **photography is the colour**; UI stays neutral so stays feel distinct.
 
@@ -87,7 +87,7 @@ Ustay is a **quiet, refined frame**; each property's photography and story are t
 personalise through content, imagery, and a small set of curated **theme presets** (accent + mood) —
 never free-form design. Every microsite stays unmistakably Ustay.
 
-## Reference shortlist — steal *this specific thing*
+## Reference shortlist — steal _this specific thing_
 
 - **The Asteren** — numbered editorial sections; calligraphic serif; type that bleeds off the edges.
 - **Lunara** — `[bracketed labels]`, the single green accent word, corner-bracket framing.
