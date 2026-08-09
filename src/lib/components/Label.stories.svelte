@@ -2,6 +2,7 @@
 	import { defineMeta } from '@storybook/addon-svelte-csf';
 	import Heading from './Heading.svelte';
 	import Label from './Label.svelte';
+	import Text from './Text.svelte';
 
 	const { Story } = defineMeta({
 		title: 'Typography/Label',
@@ -9,7 +10,12 @@
 		tags: ['autodocs'],
 		args: { as: 'p', number: '01', tone: 'accent' },
 		argTypes: {
-			as: { control: 'inline-radio', options: ['p', 'span', 'div'] },
+			as: {
+				control: 'select',
+				options: ['p', 'span', 'div', 'h2', 'h3', 'h4', 'h5', 'h6'],
+				description:
+					'Render target. Use `h2`–`h6` when the spine label is the section heading — identical styling, real outline.'
+			},
 			number: { control: 'text', description: 'Section number — rendered as `01 — Label`' },
 			tone: { control: 'inline-radio', options: ['accent', 'inherit', 'muted'] }
 		}
@@ -50,6 +56,25 @@
 	{#snippet template(args)}
 		<Label {...args}>A few of our stays</Label>
 		<Heading level={2} size="sm" class="mt-6">Places with a point of view.</Heading>
+	{/snippet}
+</Story>
+
+<!-- The spine label as the section's *actual* heading. On most Ustay bands the
+     numbered label is the only title the section has, so it should be the `h2`:
+     `as="h2"` renders a real heading, the band lands in the document outline, and
+     screen-reader heading navigation finds it. Reach for this instead of pinning an
+     `id` on a `<p>` and pointing the section's `aria-labelledby` at it — a named
+     region with nothing in the outline. Styling is byte-identical either way; only
+     the semantics move. -->
+<Story name="As the section heading" args={{ as: 'h2', number: '02' }}>
+	{#snippet template(args)}
+		<section>
+			<Label {...args}>Stays</Label>
+			<Text measure="default" class="mt-4">
+				Renders an <code>&lt;h2&gt;</code> — same type, same tracking, but the section now has a heading
+				rather than a paragraph pretending to be one.
+			</Text>
+		</section>
 	{/snippet}
 </Story>
 

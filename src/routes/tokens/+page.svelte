@@ -7,6 +7,12 @@
 	//      `Section` + `Container`, every line of type is a `Heading`/`Text`/`Eyebrow`/
 	//      `Label`. If this page looks right, the library composes.
 	//
+	// The outline is built out of the primitives too (UST-50): each band's numbered
+	// spine label *is* its heading, so it renders as `Label as="h2"` — no `id` +
+	// `aria-labelledby` pair pointing at a paragraph, as this page used to need. The
+	// display lines that are only specimens of the type take `Heading as="p"` and stay
+	// out of the outline, which leaves h1 → h2 per band → h3 per card.
+	//
 	// Nothing here hard-codes a colour, a size or a tone. In particular the specimen
 	// block at the bottom is rendered twice from a single snippet — once on paper, once
 	// inside `<Section tone="inverse">` — and not one component branches on tone. That
@@ -268,9 +274,9 @@
 		</Container>
 	</Section>
 
-	<Section space="sm" aria-labelledby="palette">
+	<Section space="sm">
 		<Container>
-			<Label id="palette" number="01">Palette</Label>
+			<Label as="h2" number="01">Palette</Label>
 			<Text size="sm" tone="muted" measure="default" class="mt-4">
 				Values are read back off each rendered chip after mount, so a caption can't drift from its
 				token.
@@ -284,7 +290,7 @@
 
 			<!-- The lifted set shown where it is actually used: inside an inverse scope. -->
 			<Section tone="inverse" space="none" class="mt-grid rounded-frame p-8">
-				<Heading level={2} size="xs">Lifted for the dark tone</Heading>
+				<Heading level={3} size="xs">Lifted for the dark tone</Heading>
 				<Text size="sm" measure="default" class="mt-2">
 					Contrast is part of the palette, not a later fix. The light neutrals fail on ink, so the
 					inverse scope swaps in these instead of reusing them.
@@ -298,21 +304,23 @@
 		</Container>
 	</Section>
 
-	<Section space="sm" aria-labelledby="type-display">
+	<Section space="sm">
 		<Container>
-			<Label id="type-display" number="02">Type — display (Fraunces)</Label>
+			<Label as="h2" number="02">Type — display (Fraunces)</Label>
 			<Stack gap="lg" class="mt-8">
 				{#each display as d (d.size)}
 					<Stack gap="xs">
 						<Text size="sm" tone="muted">{d.token} · {d.note}</Text>
-						<Heading level={3} size={d.size} tone="content">{d.sample}</Heading>
+						<!-- Specimens of the type, not headings of anything — `as="p"` keeps the
+						     display voice out of the outline. -->
+						<Heading as="p" size={d.size} tone="content">{d.sample}</Heading>
 					</Stack>
 				{/each}
 				<Stack gap="xs">
 					<Text size="sm" tone="muted">
 						italic — the calligraphic accent word, and the wordmark
 					</Text>
-					<Heading level={3} size="sm" tone="content">
+					<Heading as="p" size="sm" tone="content">
 						Every stay has a <em>story</em>.
 					</Heading>
 				</Stack>
@@ -320,9 +328,9 @@
 		</Container>
 	</Section>
 
-	<Section space="sm" aria-labelledby="type-body">
+	<Section space="sm">
 		<Container>
-			<Label id="type-body" number="03">Type — body &amp; utility (Inter)</Label>
+			<Label as="h2" number="03">Type — body &amp; utility (Inter)</Label>
 			<Stack gap="lg" class="mt-8">
 				<Stack gap="xs">
 					<Text size="sm" tone="muted">text-lead · measure=default (52ch)</Text>
@@ -356,9 +364,9 @@
 		</Container>
 	</Section>
 
-	<Section space="sm" aria-labelledby="space">
+	<Section space="sm">
 		<Container>
-			<Label id="space" number="04">Space</Label>
+			<Label as="h2" number="04">Space</Label>
 			<Stack gap="sm" class="mt-8">
 				{#each spacings as s (s.name)}
 					<Stack direction="row" gap="sm" align="center" wrap>
@@ -386,9 +394,9 @@
 		</Container>
 	</Section>
 
-	<Section space="sm" aria-labelledby="form">
+	<Section space="sm">
 		<Container>
-			<Label id="form" number="05">Form &amp; elevation</Label>
+			<Label as="h2" number="05">Form &amp; elevation</Label>
 
 			<Stack direction="row" gap="lg" wrap class="mt-8">
 				{#each radii as r (r.name)}
@@ -423,9 +431,9 @@
 		</Container>
 	</Section>
 
-	<Section space="sm" tone="surface" aria-labelledby="primitives-light">
+	<Section space="sm" tone="surface">
 		<Container>
-			<Label id="primitives-light" number="06">Primitives — paper tone</Label>
+			<Label as="h2" number="06">Primitives — paper tone</Label>
 			<Text size="sm" tone="muted" measure="default" class="mt-4">
 				The same specimen block renders below on ink. One snippet, no tone prop, no conditionals.
 			</Text>
@@ -433,10 +441,12 @@
 		</Container>
 	</Section>
 
-	<Section space="lg" tone="inverse" aria-labelledby="primitives-inverse">
+	<Section space="lg" tone="inverse">
 		<Container>
-			<Label id="primitives-inverse" number="07">Primitives — inverse tone</Label>
-			<Heading level={2} size="sm" tone="content" class="mt-6">
+			<Label as="h2" number="07">Primitives — inverse tone</Label>
+			<!-- A pull statement, not this band's title — the label above is the heading,
+			     so the display line steps out of the outline with `as="p"`. -->
+			<Heading as="p" size="sm" tone="content" class="mt-6">
 				A listing shows you a room. A <em>story</em> shows you a place.
 			</Heading>
 			<Text size="lead" measure="default" class="mt-6">
