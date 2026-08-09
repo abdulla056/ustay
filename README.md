@@ -21,6 +21,9 @@ Storybook · Vitest + Playwright · deploys to Cloudflare Pages. Package manager
 ```sh
 bun install
 
+# Component tests run in a real browser — install the chromium Playwright uses
+bunx playwright install chromium
+
 # 1. Start the local Postgres database (Docker, see compose.yaml)
 bun run db:start
 
