@@ -20,6 +20,7 @@ describe('$lib/motion on the server', () => {
 			'parallax',
 			'prefersReducedMotion',
 			'reducedMotion',
+			'refreshMotion',
 			'reveal',
 			'scrollTo',
 			'smoothScroll',
@@ -54,6 +55,10 @@ describe('$lib/motion on the server', () => {
 	it('no-ops on scrollTo rather than reaching for `window`', () => {
 		expect(motion.scrollTo('#stays')).toBeUndefined();
 		expect(motion.getSmoothScroller()).toBeUndefined();
+	});
+
+	it('no-ops on refreshMotion, which a layout may call before hydration', () => {
+		expect(motion.refreshMotion()).toBeUndefined();
 	});
 
 	it('opens on the dark tone', () => {

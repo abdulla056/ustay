@@ -12,6 +12,7 @@
  * | ------------------ | -------------------------------------------------------------- |
  * | `smoothScroll()`   | Lenis momentum + ScrollTrigger wiring. Attach once, in a layout. |
  * | `scrollTo()`       | Anchor scrolling through the smooth scroller, with a fallback.  |
+ * | `refreshMotion()`  | Re-measure after client navigation. Call from `afterNavigate`.  |
  * | `tonalScroll()`    | The signature dark→light dissolve, and the tone flip with it.   |
  * | `pageTone`         | Which tone the viewport is over — what the nav reads.           |
  * | `reveal()`         | Editorial rise-and-fade as content enters.                      |
@@ -76,6 +77,9 @@ export { reducedMotion } from './reduced-motion.svelte';
 
 export { smoothScroll, scrollTo, getSmoothScroller } from './smooth-scroll';
 export type { SmoothScrollOptions, ScrollToOptions } from './smooth-scroll';
+
+export { refreshMotion } from './router';
+export type { RefreshMotionOptions } from './router';
 
 export { tonalScroll } from './tonal-scroll';
 export type { TonalScrollOptions } from './tonal-scroll';
