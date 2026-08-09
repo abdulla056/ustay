@@ -34,7 +34,8 @@ bun run db:push
 bun run dev --open
 ```
 
-The better-auth demo lives at `/demo/better-auth`.
+Two dev-only pages are worth opening: `/prototype` (the art-direction prototype) and `/tokens` (the
+design-token showcase).
 
 ### Environment
 
@@ -57,6 +58,12 @@ Copy `.env.example` to `.env` and adjust as needed. Before any non-local use, re
 | `bun run db:push`     | Push the Drizzle schema to the database |
 | `bun run db:studio`   | Open Drizzle Studio                     |
 | `bun run auth:schema` | Regenerate the better-auth schema       |
+
+## Architecture
+
+Where code lives — the `$lib` layout, the `$lib/server` trust boundary, the route-group strategy, and
+the data-access/repository conventions — is documented in
+[`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md). Read it before adding a route or a query.
 
 ## Database
 
