@@ -49,6 +49,6 @@ Linear: <url>
 - `UST-40.md` — CI workflow: check/lint/test on every PR (**DONE + merged**, PR #5 → `.github/workflows/ci.yml`)
 - `UST-45.md` — Motion utility layer, Lenis + GSAP in `src/lib/motion/` (**DONE + merged**, PR #8 → attachments + `/motion` demo; follow-ups UST-51…54)
 - `UST-47.md` — Rebuild `/tokens` on the primitives + fix inverse accent contrast (**DONE + merged**, PR #7; API gaps → UST-50)
-- `UST-46.md` — Nav + wordmark + motion wired into `(platform)` layout (also closes UST-51; owns `src/lib/index.ts` this wave)
+- `UST-46.md` — Nav + wordmark + motion wired into `(platform)` layout (**DONE + merged**, PR #11, closes UST-51; follow-ups UST-59…62)
 - `UST-50.md` — Primitive API refinements from dogfooding (**DONE + merged**, PR #10 → `Label`/`Heading` `as` props, gap seam; round 2 → UST-58)
 - `UST-49.md` — Auth route protection in `hooks.server.ts` (**DONE + merged**, PR #9 → `guardRoute()` + typed locals; follow-ups UST-55…57)
