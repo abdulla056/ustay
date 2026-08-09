@@ -140,8 +140,9 @@ Each group folder has a `README.md` stating what belongs in it. Outside the grou
   client-side fetches that have no page to hang off. A page's own data goes through `load`, not
   through a `+server.ts` the page then fetches. better-auth's endpoints are mounted at `/api/auth/*`
   by `svelteKitHandler` in `hooks.server.ts`; do not write route files for them.
-- `prototype/` and `tokens/` — dev-only pages (the art-direction prototype and the token showcase).
-  Deliberately outside the groups so they inherit no chrome and stay honest.
+- `prototype/`, `tokens/` and `motion/` — dev-only pages (the art-direction prototype, the token
+  showcase, and the motion-layer demo). Deliberately outside the groups so they inherit no chrome
+  and stay honest.
 
 ### Why the microsite is a separate group
 
