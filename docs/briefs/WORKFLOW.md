@@ -47,5 +47,5 @@ Linear: <url>
 - `UST-8.md` — Database & Drizzle conventions (**DONE + merged**, PR #2 → `docs/DATABASE.md` + `src/lib/server/db/helpers.ts`)
 - `UST-9.md` — Project architecture & app packaging (**DONE + merged**, PR #6 → `docs/ARCHITECTURE.md`, app-shaped package.json, 4 route groups)
 - `UST-40.md` — CI workflow: check/lint/test on every PR (**DONE + merged**, PR #5 → `.github/workflows/ci.yml`)
-- `UST-45.md` — Motion utility layer, Lenis + GSAP in `src/lib/motion/` (no dep changes — gsap/lenis already installed)
+- `UST-45.md` — Motion utility layer, Lenis + GSAP in `src/lib/motion/` (**DONE + merged**, PR #8 → attachments + `/motion` demo; follow-ups UST-51…54)
 - `UST-47.md` — Rebuild `/tokens` on the primitives + fix inverse accent contrast (**DONE + merged**, PR #7; API gaps → UST-50)
