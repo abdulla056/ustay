@@ -236,3 +236,21 @@ export function composeCleanup(...cleanups: Array<(() => void) | undefined>): ()
 export function warn(message: string): void {
 	if (import.meta.env.DEV) console.warn(`[motion] ${message}`);
 }
+
+/**
+ * Is `element` already (at least partly) inside the viewport, right now?
+ *
+ * A reveal's scroll threshold (`start: 'top 82%'` and friends) exists for
+ * content still below the fold. Content already on screen at mount has, by
+ * definition, already "arrived" — gating it behind the same threshold means
+ * anything in roughly the bottom fifth of the initial viewport is primed to
+ * opacity 0 and stays invisible until the visitor's first scroll (UST-59).
+ * Checking the actual viewport rather than reproducing the threshold's own
+ * math is also what makes this robust to the sub-pixel misses that caused
+ * that bug in the first place.
+ */
+export function isInViewport(element: Element): boolean {
+	if (!browser) return false;
+	const { top, bottom } = element.getBoundingClientRect();
+	return top < window.innerHeight && bottom > 0;
+}
