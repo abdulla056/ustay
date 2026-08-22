@@ -11,6 +11,7 @@ import { motionDefaults } from './config';
 import {
 	composeCleanup,
 	editorialEase,
+	isInViewport,
 	motionAttachment,
 	primeStyles,
 	resolveTargets
@@ -29,12 +30,18 @@ export type RevealOptions = {
 	stagger?: number;
 	/** Animate the descendants matching this selector instead of the element. */
 	select?: string;
-	/** ScrollTrigger start. Default `'top 82%'` — just before it is fully in view. */
+	/**
+	 * ScrollTrigger start. Default `'top 82%'` — just before it is fully in
+	 * view. Only applies to elements that are still below the fold when they
+	 * mount; anything already in the initial viewport plays immediately
+	 * instead of waiting on a scroll that may never bring it further into view.
+	 */
 	start?: string;
 };
 
 /**
- * Rise-and-fade as it enters the viewport.
+ * Rise-and-fade as it enters the viewport — or immediately on mount, if it's
+ * already there (below-the-fold content still waits for the scroll threshold).
  *
  * ```svelte
  * <Heading {@attach reveal()}>A listing shows you a room.</Heading>
@@ -58,7 +65,9 @@ export function reveal(options: RevealOptions = {}): Attachment<Element> {
 					stagger,
 					ease: options.ease ?? editorialEase(),
 					clearProps: 'opacity,transform',
-					scrollTrigger: { trigger: element, start, once: true }
+					...(isInViewport(element)
+						? null
+						: { scrollTrigger: { trigger: element, start, once: true } })
 				}
 			);
 		},
@@ -93,7 +102,11 @@ export type DisplayEntranceOptions = {
 	stagger?: number;
 	delay?: number;
 	ease?: string;
-	/** Play on scroll-in rather than on mount. Use for display type below the fold. */
+	/**
+	 * Play on scroll-in rather than on mount. Use for display type below the
+	 * fold — though if it turns out to already be in the initial viewport
+	 * anyway, it still plays immediately rather than waiting on a scroll.
+	 */
 	onScroll?: boolean;
 	/** ScrollTrigger start, when `onScroll`. Default `'top 80%'`. */
 	start?: string;
@@ -140,7 +153,9 @@ export function displayEntrance(options: DisplayEntranceOptions = {}): Attachmen
 							if (mask instanceof HTMLElement) mask.style.removeProperty('overflow');
 						}
 					},
-					...(options.onScroll ? { scrollTrigger: { trigger: element, start, once: true } } : null)
+					...(options.onScroll && !isInViewport(element)
+						? { scrollTrigger: { trigger: element, start, once: true } }
+						: null)
 				}
 			);
 		},

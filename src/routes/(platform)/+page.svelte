@@ -88,17 +88,7 @@
 			justify="between"
 			wrap
 			class="mt-8"
-			{@attach reveal({
-				select: ':scope > *',
-				stagger: 0.1,
-				delay: 0.6,
-				y: 24,
-				// `reveal`'s default start (`top 82%`) is a scroll threshold, and this row
-				// sits *below* it in a short viewport — so on load it would stay primed and
-				// invisible until the first scroll. `top bottom` is already crossed by
-				// anything on screen, which is what the hero's load moment wants.
-				start: 'top bottom'
-			})}
+			{@attach reveal({ select: ':scope > *', stagger: 0.1, delay: 0.6, y: 24 })}
 		>
 			<Text size="lead" tone="inherit" measure="tight" class="opacity-90">
 				Homestays, resorts, and hideaways with a character all their own. Discover the place — not

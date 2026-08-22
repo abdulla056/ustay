@@ -68,6 +68,34 @@ describe('reveal', () => {
 		await expect.poll(() => element.style.opacity, { timeout: 5000 }).toBe('');
 		expect(element.style.transform).toBe('');
 	});
+
+	it('plays on mount, with no scroll threshold, for content already in the viewport', async () => {
+		// UST-59: an element inside the initial viewport — including the bottom
+		// slice the default `start: 'top 82%'` sits above — must not wait on a
+		// scroll that may never happen.
+		const element = mount();
+		const before = ScrollTrigger.getAll().length;
+
+		attach(reveal({ duration: 0.2 })(element));
+
+		await expect.poll(() => element.style.opacity, { timeout: 5000 }).toBe('');
+		expect(ScrollTrigger.getAll().length).toBe(before);
+	});
+
+	it('keeps the scroll threshold for content that starts below the fold', async () => {
+		const element = mount();
+		element.style.marginTop = `${window.innerHeight * 2}px`;
+		const before = ScrollTrigger.getAll().length;
+
+		const teardown = attach(reveal({ duration: 0.2 })(element));
+
+		await vi.waitUntil(() => ScrollTrigger.getAll().length > before, { timeout: 5000 });
+		expect(ScrollTrigger.getAll().length).toBe(before + 1);
+		// Still off-screen, so still primed — nothing has scrolled it into view.
+		expect(element.style.opacity).toBe('0');
+
+		teardown();
+	});
 });
 
 describe('displayEntrance', () => {
@@ -84,6 +112,34 @@ describe('displayEntrance', () => {
 		// Released once landed: a permanent overflow clip would cut italic descenders.
 		await expect.poll(() => mask.style.overflow, { timeout: 5000 }).toBe('');
 	});
+
+	it('plays immediately when the onScroll variant is already in the viewport', async () => {
+		// `onScroll` is meant for display type below the fold, but it should never
+		// leave already-visible content waiting on a scroll (the same UST-59 edge).
+		const element = mount('<span class="block"><span class="block">Every stay</span></span>');
+		const mask = element.firstElementChild as HTMLElement;
+		const before = ScrollTrigger.getAll().length;
+
+		attach(displayEntrance({ duration: 0.2, delay: 0, onScroll: true })(element));
+
+		await expect.poll(() => mask.style.overflow, { timeout: 5000 }).toBe('');
+		expect(ScrollTrigger.getAll().length).toBe(before);
+	});
+
+	it('keeps the scroll threshold for the onScroll variant below the fold', async () => {
+		const element = mount('<span class="block"><span class="block">Every stay</span></span>');
+		const mask = element.firstElementChild as HTMLElement;
+		element.style.marginTop = `${window.innerHeight * 2}px`;
+		const before = ScrollTrigger.getAll().length;
+
+		const teardown = attach(displayEntrance({ duration: 0.2, delay: 0, onScroll: true })(element));
+
+		await vi.waitUntil(() => ScrollTrigger.getAll().length > before, { timeout: 5000 });
+		expect(ScrollTrigger.getAll().length).toBe(before + 1);
+		expect(mask.style.overflow).toBe('hidden');
+
+		teardown();
+	});
 });
 
 describe('imageReveal', () => {
@@ -97,6 +153,30 @@ describe('imageReveal', () => {
 		expect(element.style.transform).toContain('1.12');
 
 		await expect.poll(() => element.style.clipPath, { timeout: 5000 }).toBe('');
+	});
+
+	it('plays on mount, with no scroll threshold, for a frame already in the viewport', async () => {
+		const element = mount();
+		const before = ScrollTrigger.getAll().length;
+
+		attach(imageReveal({ duration: 0.2 })(element));
+
+		await expect.poll(() => element.style.clipPath, { timeout: 5000 }).toBe('');
+		expect(ScrollTrigger.getAll().length).toBe(before);
+	});
+
+	it('keeps the scroll threshold for a frame that starts below the fold', async () => {
+		const element = mount();
+		element.style.marginTop = `${window.innerHeight * 2}px`;
+		const before = ScrollTrigger.getAll().length;
+
+		const teardown = attach(imageReveal({ duration: 0.2 })(element));
+
+		await vi.waitUntil(() => ScrollTrigger.getAll().length > before, { timeout: 5000 });
+		expect(ScrollTrigger.getAll().length).toBe(before + 1);
+		expect(element.style.clipPath).toContain('inset(100%');
+
+		teardown();
 	});
 });
 

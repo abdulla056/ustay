@@ -11,7 +11,7 @@
  */
 import type { Attachment } from 'svelte/attachments';
 import { motionDefaults } from './config';
-import { editorialEase, motionAttachment, primeStyles } from './internal';
+import { editorialEase, isInViewport, motionAttachment, primeStyles } from './internal';
 
 export type ImageRevealOptions = {
 	/** Scale the media starts at, settling to 1. Default `1.12`. */
@@ -25,7 +25,11 @@ export type ImageRevealOptions = {
 	 * edge upward; `down` from the top edge down; `none` scales only.
 	 */
 	wipe?: 'up' | 'down' | 'none';
-	/** ScrollTrigger start. Default `'top 85%'`. */
+	/**
+	 * ScrollTrigger start. Default `'top 85%'`. Only applies to frames still
+	 * below the fold when they mount — one already in the initial viewport
+	 * reveals immediately.
+	 */
 	start?: string;
 };
 
@@ -59,7 +63,9 @@ export function imageReveal(options: ImageRevealOptions = {}): Attachment<Elemen
 					delay,
 					ease: options.ease ?? editorialEase(),
 					clearProps: 'transform,clipPath',
-					scrollTrigger: { trigger: element, start, once: true }
+					...(isInViewport(element)
+						? null
+						: { scrollTrigger: { trigger: element, start, once: true } })
 				}
 			);
 		},
