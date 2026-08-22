@@ -55,4 +55,4 @@ Linear: <url>
 - `UST-49.md` — Auth route protection in `hooks.server.ts` (**DONE + merged**, PR #9 → `guardRoute()` + typed locals; follow-ups UST-55…57)
 - `UST-59.md` — reveal() play-on-mount fix (**DONE + merged**, PR #12 → in-viewport check in reveal/imageReveal/displayEntrance; Linear update pending re-auth)
 - `UST-57.md` — Route-group layouts: (dashboard) shell + (auth) card (**DONE + merged**, PR #13 → sign-out via `/dashboard?/signOut` action; Linear update pending re-auth)
-- `UST-10.md` — Seed / dev-data infrastructure (db scripts + docs; may add a dep — flag it)
+- `UST-10.md` — Seed / dev-data infrastructure (**DONE + merged**, PR #14 → `db:seed`/`db:reset` + dev user `owner@ustay.test`; ⚠ full loop not yet run against a live Postgres — verify once Docker is available)
