@@ -53,6 +53,6 @@ Linear: <url>
 - `UST-46.md` — Nav + wordmark + motion wired into `(platform)` layout (**DONE + merged**, PR #11, closes UST-51; follow-ups UST-59…62)
 - `UST-50.md` — Primitive API refinements from dogfooding (**DONE + merged**, PR #10 → `Label`/`Heading` `as` props, gap seam; round 2 → UST-58)
 - `UST-49.md` — Auth route protection in `hooks.server.ts` (**DONE + merged**, PR #9 → `guardRoute()` + typed locals; follow-ups UST-55…57)
-- `UST-59.md` — reveal() play-on-mount fix (motion layer only)
+- `UST-59.md` — reveal() play-on-mount fix (**DONE + merged**, PR #12 → in-viewport check in reveal/imageReveal/displayEntrance; Linear update pending re-auth)
 - `UST-57.md` — Route-group layouts: (dashboard) shell + (auth) card (those two groups only)
 - `UST-10.md` — Seed / dev-data infrastructure (db scripts + docs; may add a dep — flag it)
