@@ -18,7 +18,8 @@ and the code are all loaded in any session opened in this folder — so briefs s
 - Build to `DESIGN.md` exactly. Validate every `.svelte` with the Svelte MCP autofixer.
 - Green gates before finishing: `bun run check`, `bun run lint`, `bun run test`.
 - Branch `ust-<n>-<slug>` off latest `main`.
-- Commit `UST-<n>: <summary>` + trailer `Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>`.
+- Commit `UST-<n>: <summary>` + trailer `Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>`
+  (use the model actually running the session).
 - Linear issue: **In Progress** at start, **Done** at end (tick its checklist).
 - Push the branch, **open a PR to `main`, and STOP — do not merge.** The orchestrator/user merges.
 
@@ -52,3 +53,6 @@ Linear: <url>
 - `UST-46.md` — Nav + wordmark + motion wired into `(platform)` layout (**DONE + merged**, PR #11, closes UST-51; follow-ups UST-59…62)
 - `UST-50.md` — Primitive API refinements from dogfooding (**DONE + merged**, PR #10 → `Label`/`Heading` `as` props, gap seam; round 2 → UST-58)
 - `UST-49.md` — Auth route protection in `hooks.server.ts` (**DONE + merged**, PR #9 → `guardRoute()` + typed locals; follow-ups UST-55…57)
+- `UST-59.md` — reveal() play-on-mount fix (motion layer only)
+- `UST-57.md` — Route-group layouts: (dashboard) shell + (auth) card (those two groups only)
+- `UST-10.md` — Seed / dev-data infrastructure (db scripts + docs; may add a dep — flag it)
