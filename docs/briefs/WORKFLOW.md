@@ -54,5 +54,5 @@ Linear: <url>
 - `UST-50.md` — Primitive API refinements from dogfooding (**DONE + merged**, PR #10 → `Label`/`Heading` `as` props, gap seam; round 2 → UST-58)
 - `UST-49.md` — Auth route protection in `hooks.server.ts` (**DONE + merged**, PR #9 → `guardRoute()` + typed locals; follow-ups UST-55…57)
 - `UST-59.md` — reveal() play-on-mount fix (**DONE + merged**, PR #12 → in-viewport check in reveal/imageReveal/displayEntrance; Linear update pending re-auth)
-- `UST-57.md` — Route-group layouts: (dashboard) shell + (auth) card (those two groups only)
+- `UST-57.md` — Route-group layouts: (dashboard) shell + (auth) card (**DONE + merged**, PR #13 → sign-out via `/dashboard?/signOut` action; Linear update pending re-auth)
 - `UST-10.md` — Seed / dev-data infrastructure (db scripts + docs; may add a dep — flag it)
