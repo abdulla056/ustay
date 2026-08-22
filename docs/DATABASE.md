@@ -137,6 +137,45 @@ Rules:
 - `DATABASE_URL` must be set for any `db:*` command (`drizzle.config.ts` throws otherwise). Start
   the local database with `bun run db:start` (see `compose.yaml`); copy `.env.example` to `.env`.
 
+## Seeding
+
+`bun run db:seed` and `bun run db:reset` (UST-10) are the harness for local/dev data. Phase 1
+adds the actual domain seed data (UST-20); this section is about the runner and conventions that
+data drops into.
+
+| Command            | What it does                                                                        |
+| ------------------ | ----------------------------------------------------------------------------------- |
+| `bun run db:seed`  | Runs every module in `seedModules` (`src/lib/server/db/seed/index.ts`). Idempotent. |
+| `bun run db:reset` | Drops + recreates the `public` schema, `db:push`, then `db:seed`. Destructive.      |
+
+**Layout** — `src/lib/server/db/seed/`:
+
+- `guard.ts` — pure, dependency-free refusal logic (`checkSeedGuard` / `checkResetGuard`), unit
+  tested in `guard.test.ts` with no database. `db:seed` refuses when `NODE_ENV=production`.
+  `db:reset` additionally refuses any `DATABASE_URL` whose hostname isn't one `compose.yaml` /
+  `.env.example` could have produced (`localhost`, `127.0.0.1`, `::1`, `db`) — dropping a schema
+  is destructive, so the bar is higher than seeding's.
+- `client.ts` — a Postgres + better-auth instance built straight from `process.env`, **not** the
+  real `$lib/server/db/index.ts` / `$lib/server/auth.ts`. Seed scripts run as plain `bun`
+  processes (`bun run db:seed`), never through Vite, so the SvelteKit virtual modules those two
+  files depend on (`$env/dynamic/private`, `$app/server`) don't exist outside a Vite build.
+  `bun run` loads `.env` itself, so `process.env.DATABASE_URL` needs no extra setup. `../schema`
+  has no `$env` dependency, so both the real and seed clients read the exact same table shapes.
+- `index.ts` — the runner. `seedModules: SeedModule[]` is the growth point: **Phase 1 adds one
+  file per aggregate here**, each exporting a `SeedModule` (`{ name, run }`) and pushed onto the
+  array in the order it must run (a booking after the property it books, etc). A module's `run`
+  checks existence, then creates through the appropriate API — better-auth for the dev user,
+  a repository's `insert…` for a domain table — never hand-written SQL.
+- `dev-user.ts` — seed module #1, and the template every later module copies. Creates
+  `owner@ustay.test` / `ustay-dev-password` through better-auth's `signUpEmail` (never by
+  hand-inserting into `user` / `account` — that's the only way the stored hash matches what
+  `emailAndPassword` sign-in checks it against later). Idempotent by check-then-create: `email`
+  is unique, so a `select` decides whether to call better-auth at all.
+- `reset.ts` — `runReset()`: drop/recreate `public` → `drizzle-kit push --force` → `runSeed()`.
+
+Both entry points are guarded, `NODE_ENV`-checked, and safe to script: `bun run db:seed` /
+`db:reset` exit non-zero on refusal or failure, printing the reason, before touching Postgres.
+
 ## Adding a table — checklist
 
 1. `id()`, `...timestamps()`, and `slug()` if the entity has a public URL.
