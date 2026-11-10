@@ -3,6 +3,7 @@
 	// type decision, so it comes from the measure tokens rather than a one-off width.
 	import type { Snippet } from 'svelte';
 	import type { HTMLAttributes } from 'svelte/elements';
+	import { warnClassCollision } from './dev';
 
 	type Props = HTMLAttributes<HTMLElement> & {
 		as?: 'p' | 'span' | 'div';
@@ -42,6 +43,17 @@
 		default: 'max-w-measure',
 		tight: 'max-w-measure-tight'
 	};
+
+	if (import.meta.env.DEV) {
+		$effect(() => {
+			warnClassCollision(
+				'Text',
+				className,
+				/(?:^|[\s,])text-(?:lead|base|sm|content(?:-prose|-muted)?)(?![\w-])/,
+				'a `text-*` size or colour utility came in through `class`; the `size`/`tone` props own those properties and Tailwind CSS order decides the winner. Use `size` or `tone`.'
+			);
+		});
+	}
 </script>
 
 <svelte:element

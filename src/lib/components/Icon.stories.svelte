@@ -1,5 +1,6 @@
 <script module lang="ts">
 	import { defineMeta } from '@storybook/addon-svelte-csf';
+	import Stack from './Stack.svelte';
 	import Heading from './Heading.svelte';
 	import Icon from './Icon.svelte';
 	import Text from './Text.svelte';
@@ -43,12 +44,12 @@
 <!-- Nothing here sets a pixel size: each icon inherits the font-size of its line. -->
 <Story name="Scales with its text">
 	{#snippet template()}
-		<div class="flex flex-col gap-6">
+		<Stack gap="md">
 			<Heading level={2} size="sm">Find your story <Icon>{@render arrow()}</Icon></Heading>
 			<Text size="lead">A lead line <Icon>{@render arrow()}</Icon></Text>
 			<Text size="base">Body copy <Icon>{@render arrow()}</Icon></Text>
 			<Text size="sm">Small print <Icon>{@render arrow()}</Icon></Text>
-		</div>
+		</Stack>
 	{/snippet}
 </Story>
 

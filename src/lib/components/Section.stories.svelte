@@ -17,7 +17,12 @@
 				options: ['inherit', 'surface', 'inverse'],
 				description: 'Tonal scope — `inverse` re-points the semantic colour tokens'
 			},
-			space: { control: 'inline-radio', options: ['none', 'sm', 'md', 'lg'] }
+			space: { control: 'inline-radio', options: ['none', 'sm', 'md', 'lg'] },
+			label: {
+				control: 'text',
+				description:
+					'Accessible name. Given, the band is a named `region` landmark; unset, it renders a plain `div`.'
+			}
 		}
 	});
 </script>
@@ -47,6 +52,14 @@
 <Story name="Inverse" args={{ tone: 'inverse' }}>
 	{#snippet template(args)}
 		<Section {...args}>{@render band('02')}</Section>
+	{/snippet}
+</Story>
+
+<!-- With `label` the band is a named `region` landmark. Without it, the band is a
+     plain `div`, so an unnamed band adds nothing to the page's landmarks. -->
+<Story name="Labelled landmark" args={{ label: 'The idea' }}>
+	{#snippet template(args)}
+		<Section {...args}>{@render band('01')}</Section>
 	{/snippet}
 </Story>
 

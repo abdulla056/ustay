@@ -9,7 +9,11 @@
 		tags: ['autodocs'],
 		args: { as: 'p', tone: 'inherit' },
 		argTypes: {
-			as: { control: 'inline-radio', options: ['p', 'span', 'div'] },
+			as: {
+				control: 'select',
+				options: ['p', 'span', 'div', 'h2', 'h3', 'h4', 'h5', 'h6'],
+				description: 'Render target. Styling is the same whichever tag it is.'
+			},
 			tone: { control: 'inline-radio', options: ['inherit', 'accent', 'muted'] }
 		}
 	});
@@ -24,6 +28,14 @@
 <Story name="Accent" args={{ tone: 'accent' }}>
 	{#snippet template(args)}
 		<Eyebrow {...args}>Ustay · foundations</Eyebrow>
+	{/snippet}
+</Story>
+
+<!-- `as` reaches h2–h6 when the eyebrow is the section's real heading. The look is
+     the same; only the document outline changes. -->
+<Story name="As a heading" args={{ as: 'h2' }}>
+	{#snippet template(args)}
+		<Eyebrow {...args}>Independent stays, beautifully told</Eyebrow>
 	{/snippet}
 </Story>
 

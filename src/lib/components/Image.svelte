@@ -5,6 +5,7 @@
 	// unlabelled image through this component (pass `alt=""` for decorative art).
 	import type { HTMLImgAttributes } from 'svelte/elements';
 	import { ratios, type Ratio } from './ratio';
+	import { warnClassCollision } from './dev';
 
 	type Props = HTMLImgAttributes & {
 		src: string;
@@ -33,6 +34,19 @@
 		frame: 'rounded-frame',
 		none: 'rounded-none'
 	};
+
+	// `rounded` always generates a radius (it defaults to `image`), so the guard is
+	// always on: any `rounded-*` through `class` is a second radius declaration.
+	if (import.meta.env.DEV) {
+		$effect(() => {
+			warnClassCollision(
+				'Image',
+				className,
+				/(?:^|[\s,])rounded-/,
+				'a `rounded-*` utility came in through `class`; the `rounded` prop owns the corner radius and Tailwind CSS order decides the winner. Use `rounded`.'
+			);
+		});
+	}
 </script>
 
 <div class={['overflow-hidden', ratios[ratio], radii[rounded], className]}>

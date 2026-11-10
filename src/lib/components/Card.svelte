@@ -27,6 +27,12 @@
 		src?: string;
 		alt?: string;
 		ratio?: Ratio;
+		/**
+		 * Outline level of the stay's name. Defaults to `3`: a card sits under a
+		 * section heading, so it is an `h3` there. Set it when the card is the
+		 * page's own subsection outline (e.g. `4` under an `h3` subsection).
+		 */
+		headingLevel?: 2 | 3 | 4 | 5 | 6;
 		/** Replaces the image frame. */
 		media?: Snippet;
 		/** Replaces the name/location/price row. */
@@ -42,6 +48,7 @@
 		src,
 		alt = '',
 		ratio = '4/5',
+		headingLevel = 3,
 		media,
 		children,
 		class: className,
@@ -67,7 +74,7 @@
 	{:else}
 		<div class="mt-4 flex items-baseline justify-between gap-4">
 			<div>
-				<Heading level={3} size="xs" tone="content">
+				<Heading level={headingLevel} size="xs" tone="content">
 					{#if href}
 						<a
 							{href}

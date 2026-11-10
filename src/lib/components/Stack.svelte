@@ -8,6 +8,7 @@
 	// stylesheet order, not by the order of your class list.
 	import type { Snippet } from 'svelte';
 	import type { HTMLAttributes } from 'svelte/elements';
+	import { warnClassCollision } from './dev';
 
 	type Props = HTMLAttributes<HTMLDivElement> & {
 		direction?: 'column' | 'row';
@@ -46,11 +47,12 @@
 	// sanctioned pairing with `gap="none"`.
 	if (import.meta.env.DEV) {
 		$effect(() => {
-			if (/(?:^|[\s,])-?gap-(?!x-|y-)/.test([className].flat(9).join(' '))) {
-				console.warn(
-					'[Stack] a `gap-*` utility came in through `class`; it collides with the `gap` prop and Tailwind CSS order decides the winner. Use the `gap` prop, or `gap="none"` plus `gap-x-*`/`gap-y-*`.'
-				);
-			}
+			warnClassCollision(
+				'Stack',
+				className,
+				/(?:^|[\s,])-?gap-(?!x-|y-)/,
+				'a `gap-*` utility came in through `class`; it collides with the `gap` prop and Tailwind CSS order decides the winner. Use the `gap` prop, or `gap="none"` plus `gap-x-*`/`gap-y-*`.'
+			);
 		});
 	}
 
