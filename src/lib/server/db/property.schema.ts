@@ -4,9 +4,8 @@
  * Conventions: `docs/DATABASE.md`. Slugs are stored and renames write a redirect row to
  * `property_slug_redirect` (`docs/DECISIONS.md` #1). Currency is per property (decision #2).
  */
-import { relations, sql } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
 import { check, index, pgEnum, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
-import { user } from './auth.schema';
 import { id, slug, timestamps, userRef, uuidRef } from './helpers';
 
 export const propertyType = pgEnum('property_type', ['homestay', 'resort', 'boutique', 'rental']);
@@ -54,13 +53,3 @@ export const propertySlugRedirect = pgTable(
 	},
 	(t) => [index('property_slug_redirect_property_id_idx').on(t.propertyId)]
 );
-
-export const propertyRelations = relations(property, ({ one, many }) => ({
-	owner: one(user, { fields: [property.ownerId], references: [user.id] }),
-	slugRedirects: many(propertySlugRedirect)
-	// Child entities (rooms, photos, amenities) add their `many()` here as their tables land.
-}));
-
-export const propertySlugRedirectRelations = relations(propertySlugRedirect, ({ one }) => ({
-	property: one(property, { fields: [propertySlugRedirect.propertyId], references: [property.id] })
-}));
