@@ -47,22 +47,23 @@ Copy `.env.example` to `.env` and adjust as needed. Before any non-local use, re
 
 ## Scripts
 
-| Command               | Description                             |
-| --------------------- | --------------------------------------- |
-| `bun run dev`         | Start the dev server                    |
-| `bun run build`       | Production build (Cloudflare adapter)   |
-| `bun run preview`     | Preview the production build locally    |
-| `bun run check`       | Type-check with `svelte-check`          |
-| `bun run lint`        | Prettier + ESLint                       |
-| `bun run format`      | Format with Prettier                    |
-| `bun run test`        | Run the unit/component test suite       |
-| `bun run storybook`   | Launch Storybook                        |
-| `bun run db:start`    | Start the Postgres container            |
-| `bun run db:push`     | Push the Drizzle schema to the database |
-| `bun run db:seed`     | Seed local/dev data (idempotent)        |
-| `bun run db:reset`    | Drop, recreate, and reseed the local db |
-| `bun run db:studio`   | Open Drizzle Studio                     |
-| `bun run auth:schema` | Regenerate the better-auth schema       |
+| Command               | Description                                                               |
+| --------------------- | ------------------------------------------------------------------------- |
+| `bun run dev`         | Start the dev server                                                      |
+| `bun run build`       | Production build (Cloudflare adapter)                                     |
+| `bun run cf-typegen`  | Regenerate `src/worker-configuration.d.ts` from `wrangler.jsonc` bindings |
+| `bun run preview`     | Preview the production build locally                                      |
+| `bun run check`       | Type-check with `svelte-check`                                            |
+| `bun run lint`        | Prettier + ESLint                                                         |
+| `bun run format`      | Format with Prettier                                                      |
+| `bun run test`        | Run the unit/component test suite                                         |
+| `bun run storybook`   | Launch Storybook                                                          |
+| `bun run db:start`    | Start the Postgres container                                              |
+| `bun run db:push`     | Push the Drizzle schema to the database                                   |
+| `bun run db:seed`     | Seed local/dev data (idempotent)                                          |
+| `bun run db:reset`    | Drop, recreate, and reseed the local db                                   |
+| `bun run db:studio`   | Open Drizzle Studio                                                       |
+| `bun run auth:schema` | Regenerate the better-auth schema                                         |
 
 ## Architecture
 
