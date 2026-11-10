@@ -45,6 +45,8 @@ design-token showcase) and `/motion` (the Lenis + GSAP motion layer, on the prim
 Copy `.env.example` to `.env` and adjust as needed. Before any non-local use, replace
 `BETTER_AUTH_SECRET` with a real 32-character high-entropy secret.
 
+The example secret is dev only. Generate a real one for any deployed environment: `openssl rand -base64 32`.
+
 ## Scripts
 
 | Command               | Description                                                               |
