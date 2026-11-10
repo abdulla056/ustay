@@ -11,3 +11,6 @@ bun.lockb
 
 # Tooling
 .claude/
+
+# Generated
+src/worker-configuration.d.ts
