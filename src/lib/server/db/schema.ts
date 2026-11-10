@@ -6,3 +6,5 @@
 // the db:push vs db:generate migration workflow are decided there.
 export * from './auth.schema';
 export * from './property.schema';
+export * from './room.schema';
+export * from './relations';
