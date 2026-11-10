@@ -56,5 +56,5 @@ Linear: <url>
 - `UST-59.md` — reveal() play-on-mount fix (**DONE + merged**, PR #12 → in-viewport check in reveal/imageReveal/displayEntrance; Linear update pending re-auth)
 - `UST-57.md` — Route-group layouts: (dashboard) shell + (auth) card (**DONE + merged**, PR #13 → sign-out via `/dashboard?/signOut` action; Linear update pending re-auth)
 - `UST-10.md` — Seed / dev-data infrastructure (**DONE + merged**, PR #14 → `db:seed`/`db:reset` + dev user `owner@ustay.test`; ⚠ full loop not yet run against a live Postgres — verify once Docker is available)
-- `UST-58.md` — Primitive API refinements, round 2 (in progress, Haiku)
+- `UST-58.md` — Primitive API refinements, round 2 (**DONE + merged**, PR #16 → Card `headingLevel`, Eyebrow h2–h6, `warnClassCollision()` in `components/dev.ts`, unnamed Section renders `div`)
 - `UST-48.md` — Typed Cloudflare bindings / cf-typegen (**DONE + merged**, PR #15 → `bun run cf-typegen`, `App.Platform.env: Env`; runtime types off)
