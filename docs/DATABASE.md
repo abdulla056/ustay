@@ -56,7 +56,8 @@ Rules:
   (`session_userId_idx`). Composite: `<table>_<col1>_<col2>_idx`.
 - **Relations**: one `relations()` export per table, named `<table>Relations`.
 - **Money**: integer **minor units** plus an ISO-4217 currency column — `nightly_rate_minor`,
-  `currency`. Never `float`, and never read `numeric` into a JS number.
+  `currency`. Never `float`, and never read `numeric` into a JS number. Currency is per property
+  (`property.currency`); see `docs/DECISIONS.md` for money rules.
 - **Wall-clock vs instants**: `timestamps()` and other `_at` columns are `timestamptz` (an absolute
   instant). A check-in date or a property's local calendar is _not_ an instant — model it as `date`
   / `time` plus the property's IANA timezone, or you will ship off-by-one-day bugs.
@@ -107,8 +108,10 @@ Public URLs are slugs, not ids: `/stays/riad-el-fenn`, `/destinations/marrakech`
   than a `-2` counter, which would advertise how many similar listings exist.
 - `uniqueSlug` is advisory — two concurrent writers can both see a free slug. The unique constraint
   is the real defence: catch the unique violation and retry.
-- Slugs are unique **per table**, and are never reused after a rename. If a rename needs old links
-  to keep working, add a redirect table; do not make slug lookups clever.
+- Slugs are unique **per table**, and are never reused after a rename. Renames write a
+  `<table>_slug_redirect` row (`old_slug` → `property_id`, cascade on delete), and routes answer the
+  old slug with a 301 to the current one (route work is UST-21). Slug lookups stay a plain equality
+  (`docs/DECISIONS.md` #1).
 - Never trust a slug from the client as an identifier for a write. Resolve it to a row, then
   authorise against that row's id.
 
