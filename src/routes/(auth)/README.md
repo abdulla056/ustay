@@ -5,5 +5,8 @@ centred `+layout.svelte` (UST-57) with no header/footer, so nothing competes wit
 `Wordmark` linking home, a centred card (hairline frame per the DESIGN.md tokens) that each page's
 content renders inside of, and a minimal footer line. No nav, no motion.
 
+Password reset lands with email sending (Phase 5); revisit whether it should stay reachable while
+signed in then.
+
 better-auth's own **endpoints** are not routes in this group — `svelteKitHandler` in
 `src/hooks.server.ts` mounts them under `/api/auth/*`. Do not hand-write route files for them.
