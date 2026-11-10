@@ -23,6 +23,9 @@ export { default as Label } from './components/Label.svelte';
 export { default as Button } from './components/Button.svelte';
 export { default as Link } from './components/Link.svelte';
 
+// Forms
+export { default as Field } from './components/Field.svelte';
+
 // Chrome — the fixed nav and the wordmark it carries (UST-46). Presentation only:
 // `Nav` reads the tone the motion layer publishes, it never observes scroll itself.
 export { default as Nav } from './components/Nav.svelte';
