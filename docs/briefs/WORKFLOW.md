@@ -60,3 +60,5 @@ Linear: <url>
 - `UST-48.md` — Typed Cloudflare bindings / cf-typegen (**DONE + merged**, PR #15 → `bun run cf-typegen`, `App.Platform.env: Env`; runtime types off)
 - `UST-11.md` — Property model + slug redirect table + repository (**DONE + merged**, PR #18 → `property.schema.ts`, `property.repo.ts`, first migration `drizzle/0000_*`; repo untested until UST-41)
 - `UST-76.md` — Dev placeholder BETTER_AUTH_SECRET so fresh checkouts build (**DONE + merged**, PR #17)
+- `UST-12.md` — Room model + room repo; relations moved to `db/relations.ts` (in progress, Haiku)
+- `UST-55.md` — Sign-in / sign-up forms + `Field` primitive (in progress, Haiku)
