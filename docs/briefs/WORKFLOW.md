@@ -58,3 +58,5 @@ Linear: <url>
 - `UST-10.md` — Seed / dev-data infrastructure (**DONE + merged**, PR #14 → `db:seed`/`db:reset` + dev user `owner@ustay.test`; ⚠ full loop not yet run against a live Postgres — verify once Docker is available)
 - `UST-58.md` — Primitive API refinements, round 2 (**DONE + merged**, PR #16 → Card `headingLevel`, Eyebrow h2–h6, `warnClassCollision()` in `components/dev.ts`, unnamed Section renders `div`)
 - `UST-48.md` — Typed Cloudflare bindings / cf-typegen (**DONE + merged**, PR #15 → `bun run cf-typegen`, `App.Platform.env: Env`; runtime types off)
+- `UST-11.md` — Property model + slug redirect table + repository (in progress, Haiku)
+- `UST-76.md` — Dev placeholder BETTER_AUTH_SECRET so fresh checkouts build (in progress, Haiku)

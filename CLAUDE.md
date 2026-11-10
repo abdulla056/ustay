@@ -6,6 +6,8 @@
 
 ## Product Context
 
+Product decisions already made are in [`docs/DECISIONS.md`](./docs/DECISIONS.md).
+
 Read [`PROJECT_CONTEXT.md`](./PROJECT_CONTEXT.md) for the product vision, goals, constraints, and
 design philosophy behind Ustay. Reference it when making product or design decisions.
 
