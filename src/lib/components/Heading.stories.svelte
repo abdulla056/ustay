@@ -1,5 +1,6 @@
 <script module lang="ts">
 	import { defineMeta } from '@storybook/addon-svelte-csf';
+	import Stack from './Stack.svelte';
 	import Heading from './Heading.svelte';
 	import Text from './Text.svelte';
 
@@ -63,14 +64,14 @@
      bogus rungs on this page's outline. -->
 <Story name="Scale">
 	{#snippet template()}
-		<div class="flex flex-col gap-12">
+		<Stack gap="lg">
 			{#each scale as step (step.size)}
 				<div>
 					<Text size="sm" tone="muted" class="mb-3">{step.note}</Text>
 					<Heading as="p" size={step.size}>Every stay has a story.</Heading>
 				</div>
 			{/each}
-		</div>
+		</Stack>
 	{/snippet}
 </Story>
 
@@ -83,10 +84,10 @@
      an outline entry at all. -->
 <Story name="Outside the outline" args={{ as: 'p', size: 'sm' }}>
 	{#snippet template(args)}
-		<div class="flex flex-col gap-4">
+		<Stack gap="sm">
 			<Text size="sm" tone="muted">A pull statement — display type, no outline entry</Text>
 			<Heading {...args}>A listing shows you a room.</Heading>
-		</div>
+		</Stack>
 	{/snippet}
 </Story>
 

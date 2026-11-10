@@ -1,5 +1,6 @@
 <script module lang="ts">
 	import { defineMeta } from '@storybook/addon-svelte-csf';
+	import Stack from './Stack.svelte';
 	import Wordmark from './Wordmark.svelte';
 
 	const { Story } = defineMeta({
@@ -36,11 +37,11 @@
 -->
 <Story name="Scale">
 	{#snippet template()}
-		<div class="flex flex-col items-start gap-6">
+		<Stack align="start" gap="md">
 			{#each sizes as size (size)}
 				<Wordmark {size} />
 			{/each}
-		</div>
+		</Stack>
 	{/snippet}
 </Story>
 

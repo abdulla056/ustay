@@ -26,7 +26,12 @@
 			price: { control: 'text', description: 'Pre-formatted, e.g. "$220"' },
 			priceUnit: { control: 'text' },
 			href: { control: 'text', description: 'Makes the whole card one click target' },
-			ratio: { control: 'select', options: ['4/5', '4/6', '4/3', '3/2', '16/9', '1/1'] }
+			ratio: { control: 'select', options: ['4/5', '4/6', '4/3', '3/2', '16/9', '1/1'] },
+			headingLevel: {
+				control: 'inline-radio',
+				options: [2, 3, 4, 5, 6],
+				description: 'Outline level of the stay name. Defaults to 3.'
+			}
 		}
 	});
 
@@ -67,6 +72,16 @@
      accessible name is the stay's name. Hover eases the crop in slightly; it stays
      put under `prefers-reduced-motion`. -->
 <Story name="Linked" args={{ href: '#stillwater-cabin' }}>
+	{#snippet template(args)}
+		<div class="max-w-sm">
+			<Card {...args} />
+		</div>
+	{/snippet}
+</Story>
+
+<!-- `headingLevel` sets the outline level of the name. Here the card sits under an
+     h3 subsection, so its name is an h4. -->
+<Story name="Heading level 4" args={{ headingLevel: 4 }}>
 	{#snippet template(args)}
 		<div class="max-w-sm">
 			<Card {...args} />

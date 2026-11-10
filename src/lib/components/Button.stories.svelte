@@ -1,5 +1,6 @@
 <script module lang="ts">
 	import { defineMeta } from '@storybook/addon-svelte-csf';
+	import Stack from './Stack.svelte';
 	import Button from './Button.svelte';
 	import Icon from './Icon.svelte';
 	import Text from './Text.svelte';
@@ -72,14 +73,14 @@
      which flips per tone (ink chip on paper, paper chip on ink) by itself. -->
 <Story name="Paper — the trap on a paper surface">
 	{#snippet template()}
-		<div class="flex flex-col gap-4">
+		<Stack gap="sm">
 			<Text size="sm" tone="muted">
 				On paper, `paper` disappears into the canvas — by design. Use `solid` here.
 			</Text>
-			<div class="flex flex-wrap items-center gap-4">
+			<Stack direction="row" wrap align="center" gap="sm">
 				<Button variant="paper">paper — vanishes</Button>
 				<Button variant="solid">solid — the paper-surface CTA</Button>
-			</div>
+			</Stack>
 			<Text size="sm" tone="muted" class="mt-4">Where `paper` belongs: over an image.</Text>
 			<div class="relative w-fit overflow-hidden rounded-frame">
 				<img
@@ -92,7 +93,7 @@
 					<Button variant="paper" size="sm">Explore stays</Button>
 				</div>
 			</div>
-		</div>
+		</Stack>
 	{/snippet}
 </Story>
 
@@ -112,35 +113,32 @@
      paper chip on ink — one variant, two tones. -->
 <Story name="Variants on both tones">
 	{#snippet template()}
-		<div class="flex flex-col gap-8">
-			<div class="flex flex-col gap-4">
+		<Stack gap="lg">
+			<Stack gap="sm">
 				<Text size="sm" tone="muted">Light tone</Text>
-				<div class="flex flex-wrap items-center gap-4">
+				<Stack direction="row" wrap align="center" gap="sm">
 					{#each variants as variant (variant)}
 						<Button {variant}>{variant}</Button>
 					{/each}
-				</div>
-			</div>
-			<div
-				data-tone="inverse"
-				class="flex flex-col gap-4 rounded-frame bg-surface p-8 text-content"
-			>
+				</Stack>
+			</Stack>
+			<Stack data-tone="inverse" gap="sm" class="rounded-frame bg-surface p-8 text-content">
 				<Text size="sm" tone="muted">Inverse tone</Text>
-				<div class="flex flex-wrap items-center gap-4">
+				<Stack direction="row" wrap align="center" gap="sm">
 					{#each variants as variant (variant)}
 						<Button {variant}>{variant}</Button>
 					{/each}
-				</div>
-			</div>
-		</div>
+				</Stack>
+			</Stack>
+		</Stack>
 	{/snippet}
 </Story>
 
 <Story name="Sizes">
 	{#snippet template()}
-		<div class="flex flex-wrap items-center gap-4">
+		<Stack direction="row" wrap align="center" gap="sm">
 			<Button size="sm">Small</Button>
 			<Button size="md">Medium</Button>
-		</div>
+		</Stack>
 	{/snippet}
 </Story>

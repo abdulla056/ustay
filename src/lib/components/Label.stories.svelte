@@ -1,5 +1,6 @@
 <script module lang="ts">
 	import { defineMeta } from '@storybook/addon-svelte-csf';
+	import Stack from './Stack.svelte';
 	import Heading from './Heading.svelte';
 	import Label from './Label.svelte';
 	import Text from './Text.svelte';
@@ -44,11 +45,11 @@
 <!-- The numbered, named editorial spine — a DESIGN.md signature element. -->
 <Story name="The spine">
 	{#snippet template()}
-		<div class="flex flex-col gap-6">
+		<Stack gap="md">
 			{#each spine as entry (entry.number)}
 				<Label number={entry.number}>{entry.name}</Label>
 			{/each}
-		</div>
+		</Stack>
 	{/snippet}
 </Story>
 

@@ -1,5 +1,6 @@
 <script module lang="ts">
 	import { defineMeta } from '@storybook/addon-svelte-csf';
+	import Stack from './Stack.svelte';
 	import Grid from './Grid.svelte';
 	import Image from './Image.svelte';
 	import Text from './Text.svelte';
@@ -84,7 +85,7 @@
      plus `gap-x-*`/`gap-y-*`: separate CSS properties, nothing collides. -->
 <Story name="Gap is a prop, never a class">
 	{#snippet template()}
-		<div class="flex flex-col gap-8">
+		<Stack gap="lg">
 			<Text size="sm" tone="muted">✓ `gap="tight"` — the prop, on the fluid grid clamp</Text>
 			<Grid cols={2} gap="tight">
 				{#each frames.slice(0, 2) as frame (frame.src)}
@@ -100,6 +101,6 @@
 					<Image src={frame.src} alt={frame.alt} ratio="3/2" rounded="frame" />
 				{/each}
 			</Grid>
-		</div>
+		</Stack>
 	{/snippet}
 </Story>

@@ -1,5 +1,6 @@
 <script module lang="ts">
 	import { defineMeta } from '@storybook/addon-svelte-csf';
+	import Stack from './Stack.svelte';
 	import Badge from './Badge.svelte';
 	import Text from './Text.svelte';
 
@@ -41,36 +42,33 @@
 
 <Story name="A row of tags">
 	{#snippet template(args)}
-		<div class="flex flex-wrap gap-2">
+		<Stack direction="row" wrap gap="xs">
 			{#each tags as tag (tag)}
 				<Badge {...args}>{tag}</Badge>
 			{/each}
-		</div>
+		</Stack>
 	{/snippet}
 </Story>
 
 <Story name="Variants on both tones">
 	{#snippet template()}
-		<div class="flex flex-col gap-8">
-			<div class="flex flex-col gap-3">
+		<Stack gap="lg">
+			<Stack gap="sm">
 				<Text size="sm" tone="muted">Light tone</Text>
-				<div class="flex flex-wrap gap-2">
+				<Stack direction="row" wrap gap="xs">
 					{#each variants as variant (variant)}
 						<Badge {variant}>{variant}</Badge>
 					{/each}
-				</div>
-			</div>
-			<div
-				data-tone="inverse"
-				class="flex flex-col gap-3 rounded-frame bg-surface p-8 text-content"
-			>
+				</Stack>
+			</Stack>
+			<Stack data-tone="inverse" gap="sm" class="rounded-frame bg-surface p-8 text-content">
 				<Text size="sm" tone="muted">Inverse tone</Text>
-				<div class="flex flex-wrap gap-2">
+				<Stack direction="row" wrap gap="xs">
 					{#each variants as variant (variant)}
 						<Badge {variant}>{variant}</Badge>
 					{/each}
-				</div>
-			</div>
-		</div>
+				</Stack>
+			</Stack>
+		</Stack>
 	{/snippet}
 </Story>

@@ -8,6 +8,7 @@
 	// stylesheet order, not by the order of your class list.
 	import type { Snippet } from 'svelte';
 	import type { HTMLAttributes } from 'svelte/elements';
+	import { warnClassCollision } from './dev';
 
 	type Props = HTMLAttributes<HTMLDivElement> & {
 		/** Columns at `md` and up; always 1 (or 2 for `4`) below that. */
@@ -42,11 +43,12 @@
 	// sanctioned pairing with `gap="none"`.
 	if (import.meta.env.DEV) {
 		$effect(() => {
-			if (/(?:^|[\s,])-?gap-(?!x-|y-)/.test([className].flat(9).join(' '))) {
-				console.warn(
-					'[Grid] a `gap-*` utility came in through `class`; it collides with the `gap` prop and Tailwind CSS order decides the winner. Use the `gap` prop, or `gap="none"` plus `gap-x-*`/`gap-y-*`.'
-				);
-			}
+			warnClassCollision(
+				'Grid',
+				className,
+				/(?:^|[\s,])-?gap-(?!x-|y-)/,
+				'a `gap-*` utility came in through `class`; it collides with the `gap` prop and Tailwind CSS order decides the winner. Use the `gap` prop, or `gap="none"` plus `gap-x-*`/`gap-y-*`.'
+			);
 		});
 	}
 

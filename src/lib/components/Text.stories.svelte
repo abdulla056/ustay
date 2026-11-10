@@ -1,5 +1,6 @@
 <script module lang="ts">
 	import { defineMeta } from '@storybook/addon-svelte-csf';
+	import Stack from './Stack.svelte';
 	import Text from './Text.svelte';
 
 	const { Story } = defineMeta({
@@ -49,14 +50,14 @@
 
 <Story name="Sizes">
 	{#snippet template()}
-		<div class="flex flex-col gap-8">
+		<Stack gap="lg">
 			{#each sizes as size (size)}
 				<div>
 					<Text size="sm" tone="muted" class="mb-2">size="{size}"</Text>
 					<Text {size} measure="default">{copy}</Text>
 				</div>
 			{/each}
-		</div>
+		</Stack>
 	{/snippet}
 </Story>
 
@@ -64,17 +65,17 @@
      they resolve to their lifted dark-tone values and clear AA there too. -->
 <Story name="Tones">
 	{#snippet template()}
-		<div class="flex flex-col gap-8">
-			<div class="flex flex-col gap-3">
+		<Stack gap="lg">
+			<Stack gap="sm">
 				{#each tones as tone (tone)}
 					<Text {tone} measure="default">tone="{tone}" — {copy}</Text>
 				{/each}
-			</div>
-			<div data-tone="inverse" class="flex flex-col gap-3 rounded-frame bg-surface p-8">
+			</Stack>
+			<Stack data-tone="inverse" gap="sm" class="rounded-frame bg-surface p-8">
 				{#each tones as tone (tone)}
 					<Text {tone} measure="default">tone="{tone}" — {copy}</Text>
 				{/each}
-			</div>
-		</div>
+			</Stack>
+		</Stack>
 	{/snippet}
 </Story>

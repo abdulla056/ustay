@@ -95,6 +95,12 @@ primitives, and is _not_ exported from the barrel. Route-specific components tha
 ever use can also sit next to that page in `src/routes/`; promote them to `features/` on the second
 use, not in anticipation of it.
 
+**Props own their properties.** A utility a primitive generates from one of its props (`Text`
+`size`/`tone`, `Section` `space`, `Image` `rounded`, `Stack`/`Grid` `gap`) must not also be passed
+through `class`: Tailwind's stylesheet order, not the class list, decides the winner. Use the prop,
+or the sanctioned refinement the primitive names (`gap="none"` plus `gap-x-*`/`gap-y-*`). Dev builds
+warn via `warnClassCollision()` in `components/dev.ts`; production builds stay silent.
+
 ### Motion is client-only
 
 `gsap` and `lenis` touch `window`, and the Cloudflare worker has a size limit, so they must never be
