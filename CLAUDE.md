@@ -28,7 +28,7 @@ orchestrator session. See [`docs/briefs/WORKFLOW.md`](./docs/briefs/WORKFLOW.md)
 - Branch `ust-<n>-<slug>` off `main`; **open a PR, don't merge** (the orchestrator/user merges).
 - Build to `DESIGN.md`. Validate every `.svelte` with the Svelte MCP autofixer.
 - Green gates before finishing: `bun run check`, `bun run lint`, `bun run test`.
-- Commit `UST-<n>: <summary>` + trailer `Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>`.
+- Commit `UST-<n>: <summary>` + trailer `Co-Authored-By: Claude <model> <noreply@anthropic.com>` naming the model actually running.
 - Update the Linear issue: In Progress at start, Done at end.
 
 ---
