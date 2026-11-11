@@ -1,5 +1,6 @@
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { page } from 'vitest/browser';
 import {
 	displayEntrance,
 	getSmoothScroller,
@@ -21,8 +22,8 @@ import {
 const mounted: HTMLElement[] = [];
 const teardowns: Array<() => void> = [];
 
-function mount(html = '<p>Every stay has a story.</p>'): HTMLElement {
-	const element = document.createElement('div');
+function mount(html = '<p>Every stay has a story.</p>', tag = 'div'): HTMLElement {
+	const element = document.createElement(tag);
 	element.innerHTML = html;
 	document.body.append(element);
 	mounted.push(element);
@@ -99,36 +100,216 @@ describe('reveal', () => {
 });
 
 describe('displayEntrance', () => {
-	it('masks each display line while it rises, and releases the mask afterwards', async () => {
-		const element = mount('<span class="block"><span class="block">Every stay</span></span>');
-		const mask = element.firstElementChild as HTMLElement;
-		const line = mask.firstElementChild as HTMLElement;
+	const headline = 'Every stay has a <em>story.</em>';
+	const name = 'Every stay has a story.';
+
+	/** The masked lines SplitText built, or none once the split is reverted. */
+	const lines = (element: Element) => [...element.querySelectorAll<HTMLElement>('.display-line')];
+
+	it('fades the plain-text heading synchronously, then splits it into masked lines', async () => {
+		const element = mount(headline, 'h1');
+
+		// A delay holds the lines at their start long enough to inspect them.
+		attach(displayEntrance({ duration: 2, delay: 2 })(element));
+
+		// Before GSAP, SplitText and the fonts are here: faded, not yet split.
+		expect(element.style.opacity).toBe('0');
+		expect(lines(element)).toHaveLength(0);
+
+		await expect.poll(() => lines(element).length, { timeout: 5000 }).toBeGreaterThan(0);
+		const [line] = lines(element);
+		const mask = line.parentElement as HTMLElement;
+
+		expect(mask.classList.contains('display-line-mask')).toBe(true);
+		expect(mask.style.overflow).toBe('clip');
+		// Block boxes, or neither the clip nor the rise would take effect.
+		expect(getComputedStyle(mask).display).toBe('block');
+		expect(getComputedStyle(line).display).toBe('block');
+		// Pushed below its mask, so the mask really is hiding it.
+		expect(line.getBoundingClientRect().top).toBeGreaterThanOrEqual(
+			mask.getBoundingClientRect().bottom - 1
+		);
+		// The fade comes off as soon as the masks are holding the lines down.
+		expect(element.style.opacity).toBe('');
+	});
+
+	it('breaks lines where the text actually wraps, and re-splits on resize', async () => {
+		const element = mount(headline, 'h1');
+		Object.assign(element.style, { width: '6ch', fontSize: '20px', lineHeight: '25px' });
+
+		attach(displayEntrance({ duration: 3, delay: 0 })(element));
+
+		await expect.poll(() => lines(element).length, { timeout: 5000 }).toBeGreaterThan(1);
+		// Each line is exactly one line box tall: the split matches the wrap.
+		for (const line of lines(element)) {
+			expect(line.getBoundingClientRect().height).toBeCloseTo(25, 0);
+		}
+
+		element.style.width = '60ch';
+		await expect.poll(() => lines(element).length, { timeout: 5000 }).toBe(1);
+	});
+
+	it('carries the remaining delay across a re-split instead of restarting it', async () => {
+		const element = mount(headline, 'h1');
+		element.style.width = '60ch';
+
+		attach(displayEntrance({ duration: 0.2, delay: 2 })(element));
+		await expect.poll(() => lines(element).length, { timeout: 5000 }).toBe(1);
+		const splitAt = performance.now();
+		const [first] = lines(element);
+
+		// Resize well inside the delay window; SplitText re-splits ~200ms later.
+		await new Promise((resolve) => setTimeout(resolve, 1200));
+		element.style.width = '50ch';
+		await expect.poll(() => first.isConnected, { timeout: 2000 }).toBe(false);
+
+		// Landing on the original schedule (~2.2s) — a restarted delay would be ~3.6s.
+		await expect.poll(() => lines(element).length, { timeout: 3000 }).toBe(0);
+		expect(performance.now() - splitAt).toBeLessThan(2900);
+	});
+
+	it('keeps the original text as the accessible name while split', async () => {
+		const element = mount(headline, 'h1');
+
+		attach(displayEntrance({ duration: 2, delay: 0 })(element));
+		await expect.poll(() => lines(element).length, { timeout: 5000 }).toBeGreaterThan(0);
+
+		expect(element.getAttribute('aria-label')).toBe(name);
+		for (const line of lines(element)) {
+			expect(line.getAttribute('aria-hidden')).toBe('true');
+			expect(line.parentElement?.getAttribute('aria-hidden')).toBe('true');
+		}
+		// Computed by the browser's accessibility tree, not by reading attributes.
+		await expect.element(page.getByRole('heading', { level: 1, name, exact: true })).toBeVisible();
+	});
+
+	it('names the heading as it reads across an art-directed <br>, or by its authored label', async () => {
+		const broken = mount('Every stay<br>has a <em>story.</em>', 'h1');
+		const labelled = mount('Every stay has a <em>story.</em>', 'h2');
+		labelled.setAttribute('aria-label', 'Our story');
+
+		attach(displayEntrance({ duration: 2, delay: 0 })(broken));
+		attach(displayEntrance({ duration: 2, delay: 0 })(labelled));
+		await expect.poll(() => lines(broken).length, { timeout: 5000 }).toBe(2);
+		await expect.poll(() => lines(labelled).length, { timeout: 5000 }).toBeGreaterThan(0);
+
+		// `textContent` alone would give "Every stayhas a story.".
+		await expect.element(page.getByRole('heading', { level: 1, name, exact: true })).toBeVisible();
+		expect(labelled.getAttribute('aria-label')).toBe('Our story');
+	});
+
+	it('reverts the split once it lands, handing back the very nodes it was given', async () => {
+		const element = mount(headline, 'h1');
+		const authored = [...element.childNodes];
 
 		attach(displayEntrance({ duration: 0.2, delay: 0 })(element));
+		await expect.poll(() => lines(element).length, { timeout: 5000 }).toBeGreaterThan(0);
 
-		expect(mask.style.overflow).toBe('hidden');
-		expect(line.style.transform).toContain('115%');
+		await expect.poll(() => lines(element).length, { timeout: 5000 }).toBe(0);
+		expect([...element.childNodes]).toEqual(authored);
+		expect(element.hasAttribute('aria-label')).toBe(false);
+		expect(element.getAttribute('style') ?? '').toBe('');
+	});
 
-		// Released once landed: a permanent overflow clip would cut italic descenders.
-		await expect.poll(() => mask.style.overflow, { timeout: 5000 }).toBe('');
+	it('lands cleanly when the tween completes the moment it is created', async () => {
+		// `duration: 0, delay: 0` completes inside SplitText.create, before the
+		// split instance even exists.
+		const element = mount(headline, 'h1');
+		const authored = [...element.childNodes];
+		const errors = vi.spyOn(console, 'error');
+
+		attach(displayEntrance({ duration: 0, delay: 0 })(element));
+
+		await expect.poll(() => element.style.opacity, { timeout: 5000 }).toBe('');
+		expect(lines(element)).toHaveLength(0);
+		expect([...element.childNodes]).toEqual(authored);
+		expect(element.hasAttribute('aria-label')).toBe(false);
+		expect(errors).not.toHaveBeenCalled();
+	});
+
+	it('stops and shows the live text when Svelte updates it mid-entrance', async () => {
+		const element = mount(headline, 'h1');
+		const authored = [...element.childNodes];
+
+		attach(displayEntrance({ duration: 5, delay: 0 })(element));
+		await expect.poll(() => lines(element).length, { timeout: 5000 }).toBeGreaterThan(0);
+		// What Svelte does to a `{name}`: write its own text node.
+		(authored[0] as Text).nodeValue = 'Every room has a ';
+
+		await expect.poll(() => lines(element).length, { timeout: 1000 }).toBe(0);
+		expect([...element.childNodes]).toEqual(authored);
+		expect(element.textContent).toBe('Every room has a story.');
+		expect(element.hasAttribute('aria-label')).toBe(false);
+	});
+
+	it('stops and shows the live structure when Svelte adds or removes nodes mid-entrance', async () => {
+		const element = mount('Every stay has a <em>story.</em><!---->', 'h1');
+		const [text, em, anchor] = [...element.childNodes];
+
+		attach(displayEntrance({ duration: 5, delay: 0 })(element));
+		await expect.poll(() => lines(element).length, { timeout: 5000 }).toBeGreaterThan(0);
+		// What an `{#if}` does: insert before its anchor comment, drop a branch.
+		const added = document.createElement('strong');
+		added.textContent = ' Yours.';
+		(anchor as Comment).before(added);
+		em.remove();
+
+		await expect.poll(() => lines(element).length, { timeout: 1000 }).toBe(0);
+		expect([...element.childNodes]).toEqual([text, added, anchor]);
+	});
+
+	it('does not split interactive content, and fades it in on its real nodes', async () => {
+		const element = mount('Read <a href="#stays">the story</a>', 'h1');
+		const link = element.querySelector('a');
+
+		attach(displayEntrance({ duration: 0.2, delay: 0 })(element));
+		await expect.poll(() => element.style.opacity, { timeout: 5000 }).toBe('');
+
+		expect(lines(element)).toHaveLength(0);
+		expect(element.querySelector('a')).toBe(link);
+		expect(element.hasAttribute('aria-label')).toBe(false);
+	});
+
+	it('restores the authored DOM when torn down mid-entrance', async () => {
+		const element = mount(headline, 'h1');
+		const authored = [...element.childNodes];
+
+		const teardown = attach(displayEntrance({ duration: 2, delay: 0 })(element));
+		await expect.poll(() => lines(element).length, { timeout: 5000 }).toBeGreaterThan(0);
+
+		teardown();
+
+		expect([...element.childNodes]).toEqual(authored);
+		expect(element.hasAttribute('aria-label')).toBe(false);
+		expect(element.style.opacity).toBe('');
+	});
+
+	it('still accepts hand-split markup, one line per block child', async () => {
+		const element = mount(
+			'<span class="block">Every stay</span><span class="block">has a <em>story.</em></span>',
+			'h1'
+		);
+		for (const block of element.children) (block as HTMLElement).style.display = 'block';
+
+		attach(displayEntrance({ duration: 2, delay: 0 })(element));
+
+		await expect.poll(() => lines(element).length, { timeout: 5000 }).toBe(2);
 	});
 
 	it('plays immediately when the onScroll variant is already in the viewport', async () => {
 		// `onScroll` is meant for display type below the fold, but it should never
 		// leave already-visible content waiting on a scroll (the same UST-59 edge).
-		const element = mount('<span class="block"><span class="block">Every stay</span></span>');
-		const mask = element.firstElementChild as HTMLElement;
+		const element = mount(headline, 'h2');
 		const before = ScrollTrigger.getAll().length;
 
-		attach(displayEntrance({ duration: 0.2, delay: 0, onScroll: true })(element));
+		attach(displayEntrance({ duration: 2, delay: 0, onScroll: true })(element));
 
-		await expect.poll(() => mask.style.overflow, { timeout: 5000 }).toBe('');
+		await expect.poll(() => lines(element).length, { timeout: 5000 }).toBeGreaterThan(0);
 		expect(ScrollTrigger.getAll().length).toBe(before);
 	});
 
-	it('keeps the scroll threshold for the onScroll variant below the fold', async () => {
-		const element = mount('<span class="block"><span class="block">Every stay</span></span>');
-		const mask = element.firstElementChild as HTMLElement;
+	it('waits for the scroll, unsplit, when the onScroll variant is below the fold', async () => {
+		const element = mount(headline, 'h2');
 		element.style.marginTop = `${window.innerHeight * 2}px`;
 		const before = ScrollTrigger.getAll().length;
 
@@ -136,9 +317,13 @@ describe('displayEntrance', () => {
 
 		await vi.waitUntil(() => ScrollTrigger.getAll().length > before, { timeout: 5000 });
 		expect(ScrollTrigger.getAll().length).toBe(before + 1);
-		expect(mask.style.overflow).toBe('hidden');
+		// Split only when it scrolls in, so its lines match the width at that moment.
+		expect(lines(element)).toHaveLength(0);
+		expect(element.style.opacity).toBe('0');
 
 		teardown();
+		expect(ScrollTrigger.getAll().length).toBe(before);
+		expect(element.style.opacity).toBe('');
 	});
 });
 
@@ -219,6 +404,24 @@ describe('prefers-reduced-motion', () => {
 		expect(prefersReducedMotion()).toBe(true);
 		expect(element.style.opacity).toBe(''); // never primed — it just renders
 		expect(ScrollTrigger.getAll().length).toBe(before);
+	});
+
+	it('never splits display type: the heading is just its text, visible', async () => {
+		reduceMotion();
+		const element = mount('Every stay has a <em>story.</em>', 'h1');
+		const authored = [...element.childNodes];
+
+		attach(displayEntrance()(element));
+		// Give a split every chance to (wrongly) happen.
+		await new Promise((resolve) => setTimeout(resolve, 300));
+
+		expect(element.style.opacity).toBe('');
+		expect(element.querySelector('.display-line')).toBeNull();
+		expect([...element.childNodes]).toEqual(authored);
+		expect(element.hasAttribute('aria-label')).toBe(false);
+		await expect
+			.element(page.getByRole('heading', { level: 1, name: 'Every stay has a story.' }))
+			.toBeVisible();
 	});
 
 	it('never hijacks the scroll', () => {

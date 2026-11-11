@@ -36,9 +36,7 @@
  *
  * <div {@attach smoothScroll()}>
  *   <Section tone="inherit">
- *     <Heading size="xl" {@attach displayEntrance()}>
- *       <span class="block"><span class="block">Every stay</span></span>
- *     </Heading>
+ *     <Heading size="xl" {@attach displayEntrance()}>Every stay has a <em>story.</em></Heading>
  *   </Section>
  *
  *   <Section tone="inherit" {@attach tonalScroll()}>
