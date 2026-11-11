@@ -210,11 +210,14 @@ bun run test:db          # = vitest run --project db
   `DATABASE_URL` with the db name swapped. `src/lib/server/test/global-setup.ts` **drops and
   recreates** `ustay_test` on every run, then applies the committed `drizzle/` migrations with
   drizzle's migrator, so the migration files themselves are tested from zero. It refuses to run
-  unless the database is named `ustay_test` and the host is local or `CI=true`
+  unless the database is named `ustay_test` and the host is local (a remote host is allowed only
+  on GitHub Actions with `TEST_DATABASE_URL` set explicitly; plain `CI=true` is not enough)
   (`src/lib/server/test/db-url.ts`, unit-tested without a database).
-- **`$env` resolution:** under Vitest, `vite.config.ts` repoints `DATABASE_URL` to the test URL
-  before SvelteKit snapshots `$env/dynamic/private`, so `$lib/server/db` and `$lib/server/auth`
-  work unchanged in tests. Only when `VITEST` is set; `vite dev`/`build` are untouched.
+- **`$env` resolution:** the `db` project aliases `$env/dynamic/private` to
+  `src/lib/server/test/env.ts` (reads the worker's `process.env`, filled by the project's
+  `test.env` with the test URL), so `$lib/server/db` and `$lib/server/auth` work unchanged in
+  tests. Other projects, `vite dev` and `build` are untouched. A `beforeAll` asserts
+  `current_database()` is `ustay_test` before anything is truncated.
 - **Isolation:** every table in `public` is truncated before each test
   (`TRUNCATE … RESTART IDENTITY CASCADE`, tables discovered from `pg_tables`, so new tables are
   covered automatically; `src/lib/server/test/setup.ts`). Not a per-test rollback: repositories
