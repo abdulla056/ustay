@@ -9,9 +9,10 @@
 import type { Attachment } from 'svelte/attachments';
 import { motionDefaults } from './config';
 import {
-	composeCleanup,
 	editorialEase,
+	fontsReady,
 	isInViewport,
+	loadSplitText,
 	motionAttachment,
 	primeStyles,
 	resolveTargets
@@ -82,20 +83,6 @@ export function reveal(options: RevealOptions = {}): Attachment<Element> {
 }
 
 export type DisplayEntranceOptions = {
-	/**
-	 * The line elements. Default: the element's direct children. Each is treated
-	 * as a mask and its single child is what rises, so the markup contract is:
-	 *
-	 * ```svelte
-	 * <Heading size="xl" {@attach displayEntrance()}>
-	 *   <span class="block"><span class="block">Every stay</span></span>
-	 *   <span class="block"><span class="block">has a <em>story.</em></span></span>
-	 * </Heading>
-	 * ```
-	 *
-	 * A line with no child element still animates — it just rises unmasked.
-	 */
-	select?: string;
 	/** How far below its mask each line starts, in % of its own height. Default `115`. */
 	yPercent?: number;
 	duration?: number;
@@ -117,62 +104,136 @@ export type DisplayEntranceOptions = {
  * sequence. This is the hero's load moment, so by default it plays immediately
  * on mount — pass `onScroll` for display type further down the page.
  *
- * The masks are applied by this utility, not by the markup, so with no JS or
- * reduced motion the headline is simply *there*, unclipped.
+ * Write the heading as plain text; the lines are found for you, at whatever
+ * width the heading actually renders:
+ *
+ * ```svelte
+ * <Heading size="xl" {@attach displayEntrance()}>Every stay has a <em>story.</em></Heading>
+ * ```
+ *
+ * An art-directed break is just a `<br />` (`Every stay<br />has a <em>story.</em>`);
+ * narrower viewports still wrap within each side of it.
+ *
+ * How it stays honest:
+ *
+ * - **Split late, measured right.** GSAP's `SplitText` breaks the text into
+ *   masked lines only once web fonts have settled (the serif breaks lines
+ *   differently from its fallback), and only at the moment the entrance plays —
+ *   for `onScroll`, when it scrolls in, so the lines match the width at that
+ *   moment. A resize mid-entrance re-splits (`autoSplit`) without restarting it.
+ * - **Gone once it lands.** When the lines have risen, the split is reverted and
+ *   the heading's own DOM is put back: it re-wraps naturally from then on, no
+ *   mask clips an italic descender, and Svelte keeps updating the nodes it
+ *   rendered. (The split works on a copy of them in the meantime.)
+ * - **Same accessible name.** While split, the heading carries an `aria-label`
+ *   of its original text and the line wrappers are `aria-hidden`.
+ * - **Nothing to undo without motion.** The server renders the plain text; with
+ *   no JS or reduced motion nothing is split or hidden at all. Until the split
+ *   is ready the heading is only faded (never dropped from the accessibility
+ *   tree), and a GSAP or plugin load failure fades it straight back.
+ *
+ * Hand-split markup (one block child per line) still works: each block child
+ * simply becomes a line of the split.
  */
 export function displayEntrance(options: DisplayEntranceOptions = {}): Attachment<Element> {
 	const { yPercent, duration, stagger, delay, start } = {
 		...motionDefaults.displayEntrance,
 		...options
 	};
-	const select = options.select ?? ':scope > *';
-
-	/** Each direct child masks the element that actually moves. */
-	const lines = (element: Element) =>
-		resolveTargets(element, select).map((mask) => ({ mask, line: mask.firstElementChild ?? mask }));
 
 	return motionAttachment(
-		(element, { gsap }) => {
-			const pairs = lines(element);
-			const masks = pairs.filter(({ mask, line }) => mask !== line).map(({ mask }) => mask);
+		(element, { gsap, ScrollTrigger }, _reduced, SplitText) => {
+			/** Splits and plays; returns the restore of the authored DOM. */
+			const play = () => {
+				// Svelte's own nodes are set aside untouched and SplitText cuts up a
+				// copy, so the split's `innerHTML` revert never orphans the nodes
+				// Svelte still holds references to.
+				const authored = [...element.childNodes];
+				const label = accessibleText(element);
+				element.replaceChildren(...authored.map((node) => node.cloneNode(true)));
 
-			gsap.fromTo(
-				pairs.map(({ line }) => line),
-				{ yPercent },
-				{
-					yPercent: 0,
-					duration,
-					stagger,
-					delay,
-					ease: options.ease ?? editorialEase(),
-					clearProps: 'transform',
-					// Released once the lines have landed: a permanent `overflow: hidden`
-					// on a 0.92 line-height display line would clip italic descenders.
-					onComplete: () => {
-						for (const mask of masks) {
-							if (mask instanceof HTMLElement) mask.style.removeProperty('overflow');
+				let restored = false;
+				const restore = () => {
+					if (restored) return;
+					restored = true;
+					split.revert();
+					element.replaceChildren(...authored);
+				};
+
+				const split = SplitText.create(element, {
+					type: 'lines',
+					mask: 'lines',
+					tag: 'span',
+					linesClass: 'display-line',
+					aria: 'auto',
+					autoSplit: true,
+					// Returned, so a re-split on resize carries the progress over
+					// instead of replaying from the top.
+					onSplit: (self) => {
+						// `aria: 'auto'` names the heading from `textContent`, which runs
+						// words together across a `<br>` and overrides an authored label.
+						element.setAttribute('aria-label', label);
+						// `span`s keep the heading's content valid phrasing content, but
+						// SplitText only styles its `div`s: a transform and a clip both
+						// need a block box.
+						for (const box of [...self.masks, ...self.lines]) {
+							(box as HTMLElement).style.display = 'block';
 						}
-					},
-					...(options.onScroll && !isInViewport(element)
-						? { scrollTrigger: { trigger: element, start, once: true } }
-						: null)
-				}
-			);
+						return gsap.fromTo(
+							self.lines,
+							{ yPercent },
+							{
+								yPercent: 0,
+								duration,
+								stagger,
+								delay,
+								ease: options.ease ?? editorialEase(),
+								onComplete: restore
+							}
+						);
+					}
+				});
+
+				// The masks hide the lines now (`fromTo` rendered them at their start),
+				// so the pre-split fade can come off.
+				if (element instanceof HTMLElement) element.style.removeProperty('opacity');
+				return restore;
+			};
+
+			if (options.onScroll && !isInViewport(element)) {
+				// A nested context, so a split made on scroll-in is still reverted
+				// with everything else on teardown.
+				const later = gsap.context(() => {});
+				ScrollTrigger.create({
+					trigger: element,
+					start,
+					once: true,
+					onEnter: () => later.add(play)
+				});
+				return;
+			}
+
+			return play();
 		},
 		{
-			prime: (element) => {
-				const pairs = lines(element);
-				return composeCleanup(
-					primeStyles(
-						pairs.filter(({ mask, line }) => mask !== line).map(({ mask }) => mask),
-						{ overflow: 'hidden' }
-					),
-					primeStyles(
-						pairs.map(({ line }) => line),
-						{ transform: `translateY(${yPercent}%)` }
-					)
-				);
-			}
+			prepare: async () => {
+				const [SplitText] = await Promise.all([loadSplitText(), fontsReady()]);
+				return SplitText;
+			},
+			// Faded, not hidden: the heading stays in the accessibility tree while
+			// GSAP, SplitText and the fonts arrive.
+			prime: (element) => primeStyles([element], { opacity: '0' })
 		}
 	);
+}
+
+/**
+ * The name a heading should keep while it is split: an authored `aria-label`,
+ * or its text as rendered — `innerText`, so a `<br>` reads as a space.
+ */
+function accessibleText(element: Element): string {
+	const authored = element.getAttribute('aria-label');
+	if (authored) return authored;
+	const text = element instanceof HTMLElement ? element.innerText : element.textContent;
+	return (text ?? '').replace(/\s+/g, ' ').trim();
 }
