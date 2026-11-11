@@ -41,11 +41,12 @@
 	// The two veils crossfade rather than one veil recolouring, because `transition`
 	// cannot interpolate a gradient — only its opacity.
 	import { page } from '$app/state';
-	import { pageTone, scrollTo, type Tone } from '$lib/motion';
+	import { pageTone, type Tone } from '$lib/motion';
 	import Button from './Button.svelte';
 	import Link from './Link.svelte';
+	import NavMenu from './NavMenu.svelte';
 	import Wordmark from './Wordmark.svelte';
-	import { platformNavLinks, type NavLink } from './nav';
+	import { jumpToAnchor, platformNavLinks, type NavLink } from './nav';
 
 	type Props = {
 		/** Top-level destinations. Defaults to `platformNavLinks`. */
@@ -94,22 +95,8 @@
 
 	const current = (href: string) => (page.url.pathname === href ? ('page' as const) : undefined);
 
-	/**
-	 * In-page links keep a real `href` — deep links, middle-click and no-JS all still
-	 * work — but are hijacked on a plain left click, because a native hash jump sets
-	 * the scroll position behind Lenis's back and the momentum then fights it.
-	 *
-	 * The skip link is pointedly *not* routed through here: its job is to move focus,
-	 * which only the browser's own hash navigation does.
-	 */
-	function jump(event: MouseEvent, href: string) {
-		if (!href.startsWith('#') || event.defaultPrevented) return;
-		// Leave modified clicks their native meaning (new tab, new window, download).
-		if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-
-		event.preventDefault();
-		scrollTo(href, { offset: anchorOffset });
-	}
+	// Anchor links are scrolled through the smooth scroller — see `jumpToAnchor`.
+	const jump = (event: MouseEvent, href: string) => jumpToAnchor(event, href, anchorOffset);
 
 	// Density from the prototype: the bar is ~88px tall, which is what `anchorOffset`
 	// and the scrim height are both sized against.
@@ -185,17 +172,25 @@
 			</nav>
 		{/if}
 
-		{#if cta}
-			{@const action = cta}
-			<Button
-				variant="outline"
-				size="sm"
-				href={action.href}
-				class="duration-700"
-				onclick={(event: MouseEvent) => jump(event, action.href)}
-			>
-				{action.label}<span aria-hidden="true">↗</span>
-			</Button>
-		{/if}
+		<div class="flex items-center gap-6">
+			{#if cta}
+				{@const action = cta}
+				<Button
+					variant="outline"
+					size="sm"
+					href={action.href}
+					class="duration-700"
+					onclick={(event: MouseEvent) => jump(event, action.href)}
+				>
+					{action.label}<span aria-hidden="true">↗</span>
+				</Button>
+			{/if}
+
+			<!-- Below `md` the links move into a full-screen menu. A nav with no links has
+			     nothing to put in one, so it stays mark + CTA. -->
+			{#if links.length}
+				<NavMenu {links} {cta} {home} {anchorOffset} barClass={bar} />
+			{/if}
+		</div>
 	</div>
 </header>
