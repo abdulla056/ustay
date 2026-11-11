@@ -15,6 +15,13 @@
       "when": 1794319577628,
       "tag": "0001_chunky_scarlet_spider",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1794411056340,
+      "tag": "0002_jittery_stepford_cuckoos",
+      "breakpoints": true
     }
   ]
 }

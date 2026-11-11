@@ -5,6 +5,7 @@
 // `slug()`, `userRef()`) and follow the conventions in docs/DATABASE.md — naming, ids, slugs and
 // the db:push vs db:generate migration workflow are decided there.
 export * from './auth.schema';
+export * from './amenity.schema';
 export * from './property.schema';
 export * from './room.schema';
 export * from './relations';
