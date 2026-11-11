@@ -60,6 +60,11 @@
 	--text-display-sm--line-height: 1.08;
 	--text-display-xs: 1.3rem; /* smallest serif voice — stay names, card titles */
 	--text-display-xs--line-height: 1.25;
+	/* The nav-sized `Ustay` mark (UST-61). Off the display scale on purpose: the
+	   scale jumps 1.3rem → 1.9rem, and the prototype's validated mark sits at 1.5rem
+	   between them. A brand mark is set at its own size, not the nearest heading. */
+	--text-wordmark: 1.5rem;
+	--text-wordmark--line-height: 1.2;
 
 	/* Editorial body + eyebrow/label sizes */
 	--text-lead: 1.1rem; /* lead prose */
