@@ -26,11 +26,15 @@ export { default as Link } from './components/Link.svelte';
 // Forms
 export { default as Field } from './components/Field.svelte';
 
-// Chrome — the fixed nav and the wordmark it carries (UST-46). Presentation only:
+// Chrome — the fixed nav and the wordmark it carries (UST-46), and the footer. Presentation only:
 // `Nav` reads the tone the motion layer publishes, it never observes scroll itself.
 export { default as Nav } from './components/Nav.svelte';
 export { default as Wordmark } from './components/Wordmark.svelte';
 export { platformNavLinks, type NavLink } from './components/nav';
+// The ink-tone sign-off (UST-61). Content comes in as props; the `(platform)` layout
+// supplies Ustay's own groups.
+export { default as Footer } from './components/Footer.svelte';
+export type { FooterLinkGroup } from './components/footer';
 
 // Content
 export { default as Badge } from './components/Badge.svelte';
