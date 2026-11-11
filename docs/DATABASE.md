@@ -34,6 +34,12 @@ Rules:
 
 - Order by `createdAt`, never by id — UUID v4 carries no time information.
 - Foreign keys to app tables: `uuidRef('<entity>_id')`, always with an explicit `onDelete`.
+- "Must belong to the same parent" rules (a placement may only use an asset from its own
+  property's library) are enforced with a **composite foreign key**: the target exposes a
+  `unique(<parent>_id, id)` key and the child references the pair. See `media.schema.ts` (UST-14).
+  Name composite FKs explicitly (`<table>_<target>_fk`); the generated names pass 63 characters.
+  `drizzle-kit` may emit the target's `ADD CONSTRAINT … UNIQUE` after the FK that needs it when the
+  target table already exists, so read the SQL and move it up.
 - Foreign keys to the auth user: `userRef()`. better-auth mints its own **text** ids, so a user
   reference can never be a `uuid` column.
 - A natural key (ISO country code, currency code) may be the primary key of a small immutable

@@ -8,6 +8,7 @@
 import { relations } from 'drizzle-orm';
 import { user } from './auth.schema';
 import { amenity, propertyAmenity, roomAmenity } from './amenity.schema';
+import { mediaAsset, propertyMedia, roomMedia } from './media.schema';
 import { property, propertySlugRedirect } from './property.schema';
 import { room } from './room.schema';
 
@@ -15,7 +16,9 @@ export const propertyRelations = relations(property, ({ one, many }) => ({
 	owner: one(user, { fields: [property.ownerId], references: [user.id] }),
 	slugRedirects: many(propertySlugRedirect),
 	rooms: many(room),
-	amenities: many(propertyAmenity)
+	amenities: many(propertyAmenity),
+	mediaAssets: many(mediaAsset),
+	media: many(propertyMedia)
 }));
 
 export const propertySlugRedirectRelations = relations(propertySlugRedirect, ({ one }) => ({
@@ -24,8 +27,8 @@ export const propertySlugRedirectRelations = relations(propertySlugRedirect, ({ 
 
 export const roomRelations = relations(room, ({ one, many }) => ({
 	property: one(property, { fields: [room.propertyId], references: [property.id] }),
-	amenities: many(roomAmenity)
-	// photos: many(roomPhoto) — added by the media issue
+	amenities: many(roomAmenity),
+	media: many(roomMedia)
 }));
 
 export const amenityRelations = relations(amenity, ({ many }) => ({
@@ -41,4 +44,26 @@ export const propertyAmenityRelations = relations(propertyAmenity, ({ one }) => 
 export const roomAmenityRelations = relations(roomAmenity, ({ one }) => ({
 	room: one(room, { fields: [roomAmenity.roomId], references: [room.id] }),
 	amenity: one(amenity, { fields: [roomAmenity.amenityId], references: [amenity.id] })
+}));
+
+export const mediaAssetRelations = relations(mediaAsset, ({ one, many }) => ({
+	property: one(property, { fields: [mediaAsset.propertyId], references: [property.id] }),
+	poster: one(mediaAsset, {
+		fields: [mediaAsset.posterAssetId],
+		references: [mediaAsset.id],
+		relationName: 'media_asset_poster'
+	}),
+	posterFor: many(mediaAsset, { relationName: 'media_asset_poster' }),
+	propertyPlacements: many(propertyMedia),
+	roomPlacements: many(roomMedia)
+}));
+
+export const propertyMediaRelations = relations(propertyMedia, ({ one }) => ({
+	property: one(property, { fields: [propertyMedia.propertyId], references: [property.id] }),
+	asset: one(mediaAsset, { fields: [propertyMedia.mediaAssetId], references: [mediaAsset.id] })
+}));
+
+export const roomMediaRelations = relations(roomMedia, ({ one }) => ({
+	room: one(room, { fields: [roomMedia.roomId], references: [room.id] }),
+	asset: one(mediaAsset, { fields: [roomMedia.mediaAssetId], references: [mediaAsset.id] })
 }));

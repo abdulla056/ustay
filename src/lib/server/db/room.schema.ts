@@ -6,7 +6,7 @@
  * Conventions: `docs/DATABASE.md`. Relations live in `./relations`.
  */
 import { sql } from 'drizzle-orm';
-import { check, index, integer, jsonb, pgTable, text } from 'drizzle-orm/pg-core';
+import { check, index, integer, jsonb, pgTable, text, unique } from 'drizzle-orm/pg-core';
 import { id, timestamps, uuidRef } from './helpers';
 import { property } from './property.schema';
 
@@ -38,7 +38,9 @@ export const room = pgTable(
 		check('room_max_guests_check', sql`${t.maxGuests} > 0`),
 		check('room_nightly_rate_minor_check', sql`${t.nightlyRateMinor} >= 0`),
 		check('room_unit_count_check', sql`${t.unitCount} >= 1`),
-		index('room_property_id_sort_order_idx').on(t.propertyId, t.sortOrder)
+		index('room_property_id_sort_order_idx').on(t.propertyId, t.sortOrder),
+		// Target of `room_media`'s composite foreign key, which ties a room's media to its property.
+		unique('room_id_property_id_unique').on(t.id, t.propertyId)
 	]
 );
 
