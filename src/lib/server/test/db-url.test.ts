@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { checkTestDbGuard, resolveTestDatabaseUrl } from './db-url';
+import { checkTestDbGuard, resolveE2eDatabaseUrl, resolveTestDatabaseUrl } from './db-url';
 
 const LOCAL = 'postgres://root:pw@localhost:5432/local';
 
@@ -63,5 +63,29 @@ describe('checkTestDbGuard', () => {
 	it('refuses a missing or invalid URL', () => {
 		expect(checkTestDbGuard({ testDatabaseUrl: undefined, ...local }).allowed).toBe(false);
 		expect(checkTestDbGuard({ testDatabaseUrl: 'nope', ...local }).allowed).toBe(false);
+	});
+});
+
+describe('e2e database (UST-77)', () => {
+	it('derives ustay_e2e from DATABASE_URL, preferring E2E_DATABASE_URL', () => {
+		expect(resolveE2eDatabaseUrl({ DATABASE_URL: LOCAL })).toBe(
+			'postgres://root:pw@localhost:5432/ustay_e2e'
+		);
+		const explicit = 'postgres://a:b@localhost:5432/ustay_e2e';
+		expect(resolveE2eDatabaseUrl({ E2E_DATABASE_URL: explicit, DATABASE_URL: LOCAL })).toBe(
+			explicit
+		);
+	});
+
+	it('guards by the allowed name: each lane only its own database', () => {
+		const base = { explicitUrl: false, githubActions: undefined };
+		const e2e = 'postgres://u:p@localhost:5432/ustay_e2e';
+		expect(checkTestDbGuard({ testDatabaseUrl: e2e, ...base, dbName: 'ustay_e2e' }).allowed).toBe(
+			true
+		);
+		expect(checkTestDbGuard({ testDatabaseUrl: e2e, ...base }).allowed).toBe(false);
+		expect(checkTestDbGuard({ testDatabaseUrl: LOCAL, ...base, dbName: 'ustay_e2e' }).allowed).toBe(
+			false
+		);
 	});
 });

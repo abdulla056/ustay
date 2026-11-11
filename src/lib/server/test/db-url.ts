@@ -8,6 +8,9 @@ import { LOCAL_HOSTNAMES } from '../db/seed/guard';
 /** The database the lane owns. It is dropped and recreated on every run — never point it at data. */
 export const TEST_DB_NAME = 'ustay_test';
 
+/** The e2e lane's own database (UST-77), so it never drops `ustay_test` under a running `test:db`. */
+export const E2E_DB_NAME = 'ustay_e2e';
+
 /** Swap the database name in a connection string, keeping credentials, host and port. */
 export function withDatabaseName(connectionUrl: string, dbName: string): string {
 	const url = new URL(connectionUrl);
@@ -29,6 +32,20 @@ export function resolveTestDatabaseUrl(env: {
 	}
 }
 
+/** `E2E_DATABASE_URL` if set, else `DATABASE_URL` with its db name swapped for `ustay_e2e`. */
+export function resolveE2eDatabaseUrl(env: {
+	E2E_DATABASE_URL?: string;
+	DATABASE_URL?: string;
+}): string | undefined {
+	if (env.E2E_DATABASE_URL) return env.E2E_DATABASE_URL;
+	if (!env.DATABASE_URL) return undefined;
+	try {
+		return withDatabaseName(env.DATABASE_URL, E2E_DB_NAME);
+	} catch {
+		return undefined;
+	}
+}
+
 export type TestDbGuardResult =
 	{ readonly allowed: true } | { readonly allowed: false; readonly reason: string };
 
@@ -43,8 +60,10 @@ export function checkTestDbGuard(opts: {
 	explicitUrl: boolean;
 	/** `process.env.GITHUB_ACTIONS`. Plain `CI=true` is not enough: dev shells and agents set it. */
 	githubActions: string | undefined;
+	/** The one database name this caller may touch. Defaults to `ustay_test`. */
+	dbName?: string;
 }): TestDbGuardResult {
-	const { testDatabaseUrl, explicitUrl, githubActions } = opts;
+	const { testDatabaseUrl, explicitUrl, githubActions, dbName: allowedName = TEST_DB_NAME } = opts;
 	if (!testDatabaseUrl) {
 		return {
 			allowed: false,
@@ -58,10 +77,10 @@ export function checkTestDbGuard(opts: {
 		return { allowed: false, reason: 'Test database URL is not a valid URL.' };
 	}
 	const dbName = decodeURIComponent(url.pathname.slice(1));
-	if (dbName !== TEST_DB_NAME) {
+	if (dbName !== allowedName) {
 		return {
 			allowed: false,
-			reason: `Database name is "${dbName}"; the lane only runs against "${TEST_DB_NAME}".`
+			reason: `Database name is "${dbName}"; the lane only runs against "${allowedName}".`
 		};
 	}
 	// `new URL()` brackets IPv6 hosts (`[::1]`); the allowlist stores them bare.
