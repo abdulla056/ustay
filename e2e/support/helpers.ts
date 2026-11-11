@@ -1,7 +1,8 @@
 import { expect, type Page } from '@playwright/test';
+import { DEV_USER_EMAIL, DEV_USER_PASSWORD } from '../../src/lib/server/db/seed/dev-user';
 
-/** The seeded dev user (src/lib/server/db/seed/dev-user.ts). Duplicated so e2e imports no app code. */
-export const DEV_USER = { email: 'owner@ustay.test', password: 'ustay-dev-password' } as const;
+/** The seeded dev user (src/lib/server/db/seed/dev-user.ts). */
+export const DEV_USER = { email: DEV_USER_EMAIL, password: DEV_USER_PASSWORD } as const;
 
 export async function signIn(page: Page, email: string, password: string) {
 	await page.goto('/sign-in');

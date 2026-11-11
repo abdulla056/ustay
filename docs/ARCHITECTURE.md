@@ -282,10 +282,10 @@ real SQL is an integration test: name it `*.db.test.ts` and run it with `bun run
 ### End-to-end lane (UST-77)
 
 `bun run test:e2e` runs Playwright (`@playwright/test`, Chromium; `playwright.config.ts`, specs in
-`e2e/`). Its `webServer` runs `e2e/support/prepare-db.ts` (guard, drop + recreate **`ustay_e2e`**,
+`e2e/`). Its `webServer` runs `e2e/support/prepare-db.ts` (guard, drop + recreate **`ustay_e2e_<port>`**,
 apply `drizzle/` migrations, seed the dev user), then `vite build` + `vite preview` on port 4310
 (`E2E_PORT`). It has its own database, not `ustay_test`, so it cannot drop the database a concurrent
-`test:db` is using; the DB guard takes the allowed name as a parameter. `E2E_DATABASE_URL` overrides
+`test:db` is using; the DB guard takes the allowed name pattern as a parameter (shared reset: `resetTestDatabase`). `E2E_DATABASE_URL` overrides
 the URL. Two projects: `desktop`, and `phone` for specs tagged `@mobile`. Vitest never picks up
 `e2e/`. CI runs it as the `e2e` job and uploads the report on failure. Each new page grows one flow.
 

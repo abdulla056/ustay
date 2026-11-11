@@ -14,13 +14,14 @@ test('sign in as the dev user lands on /dashboard', async ({ page }) => {
 	await signInAsDev(page);
 });
 
-test('sign in without JavaScript lands on /dashboard', async ({ browser, baseURL }) => {
-	const context = await browser.newContext({ baseURL, javaScriptEnabled: false });
-	const page = await context.newPage();
-	await signIn(page, DEV_USER.email, DEV_USER.password);
-	await expect(page).toHaveURL('/dashboard');
-	await expect(page.getByRole('heading', { level: 1, name: 'Dashboard' })).toBeVisible();
-	await context.close();
+test.describe('without JavaScript', () => {
+	test.use({ javaScriptEnabled: false });
+
+	test('sign in lands on /dashboard', async ({ page }) => {
+		await signIn(page, DEV_USER.email, DEV_USER.password);
+		await expect(page).toHaveURL('/dashboard');
+		await expect(page.getByRole('heading', { level: 1, name: 'Dashboard' })).toBeVisible();
+	});
 });
 
 test('wrong password shows the error and stays on /sign-in', async ({ page }) => {

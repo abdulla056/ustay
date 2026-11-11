@@ -8,8 +8,16 @@ import { LOCAL_HOSTNAMES } from '../db/seed/guard';
 /** The database the lane owns. It is dropped and recreated on every run — never point it at data. */
 export const TEST_DB_NAME = 'ustay_test';
 
-/** The e2e lane's own database (UST-77), so it never drops `ustay_test` under a running `test:db`. */
+/**
+ * The e2e lane's own database (UST-77), so it never drops `ustay_test` under a running `test:db`.
+ * Per run it is `ustay_e2e_<port>`, so two concurrent runs on different ports don't share one.
+ */
 export const E2E_DB_NAME = 'ustay_e2e';
+
+/** Names the db lane may touch: exactly `ustay_test`. */
+export const TEST_DB_PATTERN = /^ustay_test$/;
+/** Names the e2e lane may touch: `ustay_e2e` or `ustay_e2e_<digits>`. */
+export const E2E_DB_PATTERN = /^ustay_e2e(_\d+)?$/;
 
 /** Swap the database name in a connection string, keeping credentials, host and port. */
 export function withDatabaseName(connectionUrl: string, dbName: string): string {
@@ -32,15 +40,15 @@ export function resolveTestDatabaseUrl(env: {
 	}
 }
 
-/** `E2E_DATABASE_URL` if set, else `DATABASE_URL` with its db name swapped for `ustay_e2e`. */
-export function resolveE2eDatabaseUrl(env: {
-	E2E_DATABASE_URL?: string;
-	DATABASE_URL?: string;
-}): string | undefined {
+/** `E2E_DATABASE_URL` if set, else `DATABASE_URL` with its db name swapped for `ustay_e2e_<port>`. */
+export function resolveE2eDatabaseUrl(
+	env: { E2E_DATABASE_URL?: string; DATABASE_URL?: string },
+	port: number
+): string | undefined {
 	if (env.E2E_DATABASE_URL) return env.E2E_DATABASE_URL;
 	if (!env.DATABASE_URL) return undefined;
 	try {
-		return withDatabaseName(env.DATABASE_URL, E2E_DB_NAME);
+		return withDatabaseName(env.DATABASE_URL, `${E2E_DB_NAME}_${port}`);
 	} catch {
 		return undefined;
 	}
@@ -60,14 +68,22 @@ export function checkTestDbGuard(opts: {
 	explicitUrl: boolean;
 	/** `process.env.GITHUB_ACTIONS`. Plain `CI=true` is not enough: dev shells and agents set it. */
 	githubActions: string | undefined;
-	/** The one database name this caller may touch. Defaults to `ustay_test`. */
-	dbName?: string;
+	/** Names this caller may touch. Defaults to exactly `ustay_test`. */
+	dbNamePattern?: RegExp;
+	/** Env var named in refusal messages. Defaults to `TEST_DATABASE_URL`. */
+	urlVar?: string;
 }): TestDbGuardResult {
-	const { testDatabaseUrl, explicitUrl, githubActions, dbName: allowedName = TEST_DB_NAME } = opts;
+	const {
+		testDatabaseUrl,
+		explicitUrl,
+		githubActions,
+		dbNamePattern = TEST_DB_PATTERN,
+		urlVar = 'TEST_DATABASE_URL'
+	} = opts;
 	if (!testDatabaseUrl) {
 		return {
 			allowed: false,
-			reason: 'Neither TEST_DATABASE_URL nor DATABASE_URL is set (copy .env.example to .env).'
+			reason: `Neither ${urlVar} nor DATABASE_URL is set (copy .env.example to .env).`
 		};
 	}
 	let url: URL;
@@ -77,10 +93,10 @@ export function checkTestDbGuard(opts: {
 		return { allowed: false, reason: 'Test database URL is not a valid URL.' };
 	}
 	const dbName = decodeURIComponent(url.pathname.slice(1));
-	if (dbName !== allowedName) {
+	if (!dbNamePattern.test(dbName)) {
 		return {
 			allowed: false,
-			reason: `Database name is "${dbName}"; the lane only runs against "${allowedName}".`
+			reason: `Database name is "${dbName}"; the lane only runs against ${dbNamePattern}.`
 		};
 	}
 	// `new URL()` brackets IPv6 hosts (`[::1]`); the allowlist stores them bare.
@@ -91,7 +107,7 @@ export function checkTestDbGuard(opts: {
 			allowed: false,
 			reason:
 				`Host "${hostname}" is not local. A remote host is allowed only on GitHub Actions ` +
-				'with TEST_DATABASE_URL set explicitly.'
+				`with ${urlVar} set explicitly.`
 		};
 	}
 	return { allowed: true };
