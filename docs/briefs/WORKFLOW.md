@@ -66,3 +66,5 @@ Linear: <url>
 - `UST-41.md` — DB integration-test lane (`test:db`) + CI Postgres job + non-JS sign-in redirect bug (in progress, Sonnet)
 - `UST-61.md` — Footer component in `(platform)` layout (in progress, Opus)
 - `UST-60.md` — Nav full mobile menu (in progress, Opus)
+- `UST-14.md` — Media model: per-property library + hero/gallery/room placements (queued, Opus)
+- `UST-53.md` — Line-splitting for display type via GSAP SplitText (in progress, Opus)
