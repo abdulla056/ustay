@@ -85,7 +85,7 @@ test` and still fail `bun run build`. `bun run build` is the real check.
 
 `$lib/components/` holds the primitives from UST-7 — `Container`, `Section`, `Grid`, `Stack`,
 `Heading`, `Text`, `Eyebrow`, `Label`, `Button`, `Link`, `Badge`, `Card`, `Image`, `Icon` — plus the
-chrome from UST-46, `Nav` and `Wordmark`. A component belongs there only if it knows **nothing**
+chrome from UST-46, `Nav` and `Wordmark`, and `Footer` (UST-61). A component belongs there only if it knows **nothing**
 about Ustay's domain: no property, no booking, no host. It is styled purely from the UST-6 tokens, is deliberately static (the motion layer wraps
 it), and it ships with a `.stories.svelte` next to it. Add it to `src/lib/index.ts`.
 
@@ -265,17 +265,19 @@ that touches the row, after the row is fetched.
 
 ## Tests
 
-`vite.config.ts` defines three Vitest projects, selected purely by filename:
+`vite.config.ts` defines four Vitest projects, selected purely by filename:
 
-| File pattern       | Project     | Runs in                            |
-| ------------------ | ----------- | ---------------------------------- |
-| `*.svelte.test.ts` | `client`    | Chromium, real DOM.                |
-| `*.test.ts`        | `server`    | Node. Also `src/lib/server/**`.    |
-| `*.stories.svelte` | `storybook` | Chromium, via the Storybook addon. |
+| File pattern       | Project     | Runs in                             |
+| ------------------ | ----------- | ----------------------------------- |
+| `*.svelte.test.ts` | `client`    | Chromium, real DOM.                 |
+| `*.test.ts`        | `server`    | Node. Also `src/lib/server/**`.     |
+| `*.stories.svelte` | `storybook` | Chromium, via the Storybook addon.  |
+| `*.db.test.ts`     | `db`        | Node, real Postgres (`ustay_test`). |
 
 So a component test must be `Thing.svelte.test.ts`, and a repository or helper test must not be.
 Keep unit tests database-free — `src/lib/server/db/helpers.test.ts` is the model. Anything needing
-real SQL is an integration test and must stay out of the default `bun run test` gate.
+real SQL is an integration test: name it `*.db.test.ts` and run it with `bun run test:db` (see
+`docs/DATABASE.md`, "Integration tests"); it stays out of the default `bun run test` gate.
 
 ## Adding a feature — checklist
 

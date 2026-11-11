@@ -7,17 +7,17 @@
 		title: 'Chrome/Wordmark',
 		component: Wordmark,
 		tags: ['autodocs'],
-		args: { size: 'xs' },
+		args: { size: 'nav' },
 		argTypes: {
-			size: { control: 'inline-radio', options: ['xs', 'sm', 'md', 'lg', 'xl'] },
+			size: { control: 'inline-radio', options: ['nav', 'xs', 'sm', 'md', 'lg', 'xl'] },
 			href: { control: 'text' }
 		}
 	});
 
-	const sizes = ['xs', 'sm', 'md', 'lg', 'xl'] as const;
+	const sizes = ['nav', 'xs', 'sm', 'md', 'lg', 'xl'] as const;
 </script>
 
-<!-- The nav's mark: the smallest serif voice, Fraunces italic. -->
+<!-- The nav's mark: Fraunces italic at its own `--text-wordmark` size (1.5rem). -->
 <Story name="Default">
 	{#snippet template(args)}
 		<Wordmark {...args} />
@@ -33,7 +33,8 @@
 
 <!--
 	The scale, and the display weight that comes with each step: heavier at the nav's
-	1.3rem, lighter as the mark grows, so a large `Ustay` reads elegant rather than bold.
+	1.5rem, lighter as the mark grows, so a large `Ustay` reads elegant rather than bold.
+	`nav` sits between `xs` (1.3rem) and `sm` (from 1.9rem) on its own token.
 -->
 <Story name="Scale">
 	{#snippet template()}

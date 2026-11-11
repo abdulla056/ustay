@@ -1,7 +1,7 @@
 <script lang="ts">
 	// The Ustay platform chrome (UST-46) and the mount point for the motion layer
-	// (UST-51): the fixed nav, the momentum scroller, and the `<main>` the nav's skip
-	// link targets.
+	// (UST-51): the fixed nav, the momentum scroller, the `<main>` the nav's skip
+	// link targets, and the ink footer that closes the page (UST-61).
 	//
 	// `smoothScroll()` is attached exactly once, here. Lenis owns the *document*
 	// scroller, so a second instance anywhere below this would fight it for the same
@@ -18,8 +18,8 @@
 	// (`data-tonal-backdrop` + `tonalScroll()` on its first light section), because
 	// only the page knows whether it opens on a dark hero and where it turns to paper.
 	import { afterNavigate } from '$app/navigation';
-	import { Nav } from '$lib';
-	import { refreshMotion, smoothScroll } from '$lib/motion';
+	import { Footer, Nav, type FooterLinkGroup } from '$lib';
+	import { refreshMotion, reveal, smoothScroll } from '$lib/motion';
 
 	const { children } = $props();
 
@@ -33,6 +33,38 @@
 		{ label: 'Stays', href: '#stays' }
 	];
 	const cta = { label: 'Reserve', href: '#stays' };
+
+	// Placeholder footer content (UST-61). Pages that do not exist yet link to `#`;
+	// swap each for its route as it lands.
+	const footerGroups: FooterLinkGroup[] = [
+		{
+			heading: 'Discover',
+			links: [
+				{ label: 'Destinations', href: '#' },
+				{ label: 'Stays', href: '#' },
+				{ label: 'Journal', href: '#' }
+			]
+		},
+		{
+			heading: 'For owners',
+			links: [
+				{ label: 'List your property', href: '#' },
+				{ label: 'How it works', href: '#' },
+				{ label: 'Sign in', href: '/sign-in' }
+			]
+		},
+		{
+			heading: 'Ustay',
+			links: [
+				{ label: 'About', href: '#' },
+				{ label: 'Contact', href: '#' }
+			]
+		}
+	];
+	const footerLegal = [
+		{ label: 'Privacy', href: '#' },
+		{ label: 'Terms', href: '#' }
+	];
 
 	afterNavigate(({ from, to }) => {
 		// A hash link or a same-page navigation has a scroll position of its own; only
@@ -50,4 +82,15 @@
 	<!-- `tabindex="-1"` so the skip link can actually put focus here, not merely
 	     scroll to it. -->
 	<main id="content" tabindex="-1" class="outline-none">{@render children()}</main>
+
+	<!-- Inside the clip wrapper so the oversized sign-off mark is contained with the
+	     rest of the page. One restrained reveal, staggered across its three rows and
+	     triggered by the footer's own top edge, so even the last row — which can never
+	     scroll above the fold line — is guaranteed to play. -->
+	<Footer
+		tagline="Independent stays, beautifully told."
+		groups={footerGroups}
+		legal={footerLegal}
+		{@attach reveal({ select: ':scope > * > *', stagger: 0.1, y: 24 })}
+	/>
 </div>
