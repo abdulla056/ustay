@@ -58,7 +58,8 @@ The example secret is dev only. Generate a real one for any deployed environment
 | `bun run check`       | Type-check with `svelte-check`                                            |
 | `bun run lint`        | Prettier + ESLint                                                         |
 | `bun run format`      | Format with Prettier                                                      |
-| `bun run test`        | Run the unit/component test suite                                         |
+| `bun run test`        | Run the unit/component test suite (no database)                           |
+| `bun run test:db`     | Run the Postgres integration tests (`*.db.test.ts`, `ustay_test` db)      |
 | `bun run storybook`   | Launch Storybook                                                          |
 | `bun run db:start`    | Start the Postgres container                                              |
 | `bun run db:push`     | Push the Drizzle schema to the database                                   |

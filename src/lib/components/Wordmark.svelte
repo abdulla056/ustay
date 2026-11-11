@@ -5,23 +5,27 @@
 	// dark→light tone flip carries the mark for free with no second implementation.
 	//
 	// `size` mirrors `Heading`'s optical scale (and its display-weight per step, so a
-	// large mark stays elegant instead of turning bold) and defaults to `xs`, the fixed
-	// nav being where the mark mostly lives.
+	// large mark stays elegant instead of turning bold), plus one step of its own:
+	// `nav`, the default, at the dedicated `--text-wordmark` token (1.5rem). The type
+	// scale jumps 1.3rem → 1.9rem, and the fixed nav — where the mark mostly lives —
+	// wants the prototype's validated 1.5rem between them (UST-61). `xs`…`xl` stay
+	// exactly in step with `Heading`, for a mark set alongside display type.
 	import type { Snippet } from 'svelte';
 	import type { HTMLAttributes } from 'svelte/elements';
 
 	type Props = HTMLAttributes<HTMLElement> & {
-		/** Optical scale — same names and steps as `Heading`. */
-		size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl';
+		/** `nav` is the mark's own size; `xs`…`xl` are the same steps as `Heading`. */
+		size?: 'nav' | 'xs' | 'sm' | 'md' | 'lg' | 'xl';
 		/** Present ⇒ renders an `<a>` (the nav's home link) instead of a `<span>`. */
 		href?: string;
 		/** Override the word — a microsite's own mark. Defaults to `Ustay`. */
 		children?: Snippet;
 	};
 
-	let { size = 'xs', href, class: className, children, ...rest }: Props = $props();
+	let { size = 'nav', href, class: className, children, ...rest }: Props = $props();
 
 	const sizes = {
+		nav: 'text-wordmark font-title',
 		xs: 'text-display-xs font-title',
 		sm: 'text-display-sm font-statement',
 		md: 'text-display font-statement',

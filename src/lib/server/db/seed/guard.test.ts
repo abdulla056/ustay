@@ -29,7 +29,7 @@ describe('checkSeedGuard', () => {
 
 describe('checkResetGuard', () => {
 	it('allows localhost, 127.0.0.1, and the compose service name "db"', () => {
-		for (const host of ['localhost', '127.0.0.1', 'db']) {
+		for (const host of ['localhost', '127.0.0.1', '[::1]', 'db']) {
 			expect(
 				checkResetGuard({ ...local, databaseUrl: `postgres://root:pw@${host}:5432/local` })
 			).toEqual({ allowed: true });
