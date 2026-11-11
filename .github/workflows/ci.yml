@@ -17,9 +17,7 @@ permissions:
 jobs:
   gates:
     name: check / lint / test
-    # Pinned: `ubuntu-latest` rolled to 26.04, where `playwright install --with-deps` hangs
-    # on apt (azure.archive.ubuntu.com unreachable) and the job times out. Unpin once fixed.
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     timeout-minutes: 20
 
     steps:
@@ -82,7 +80,7 @@ jobs:
 
   db-integration:
     name: db integration
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     timeout-minutes: 15
 
     services:
