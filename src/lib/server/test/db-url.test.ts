@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { checkTestDbGuard, resolveTestDatabaseUrl } from './db-url';
+import {
+	checkTestDbGuard,
+	E2E_DB_PATTERN,
+	resolveE2eDatabaseUrl,
+	resolveTestDatabaseUrl
+} from './db-url';
 
 const LOCAL = 'postgres://root:pw@localhost:5432/local';
 
@@ -63,5 +68,41 @@ describe('checkTestDbGuard', () => {
 	it('refuses a missing or invalid URL', () => {
 		expect(checkTestDbGuard({ testDatabaseUrl: undefined, ...local }).allowed).toBe(false);
 		expect(checkTestDbGuard({ testDatabaseUrl: 'nope', ...local }).allowed).toBe(false);
+	});
+});
+
+describe('e2e database (UST-77)', () => {
+	it('derives ustay_e2e_<port> from DATABASE_URL, preferring E2E_DATABASE_URL', () => {
+		expect(resolveE2eDatabaseUrl({ DATABASE_URL: LOCAL }, 4310)).toBe(
+			'postgres://root:pw@localhost:5432/ustay_e2e_4310'
+		);
+		const explicit = 'postgres://a:b@localhost:5432/ustay_e2e';
+		expect(resolveE2eDatabaseUrl({ E2E_DATABASE_URL: explicit, DATABASE_URL: LOCAL }, 1)).toBe(
+			explicit
+		);
+	});
+
+	it('guards by name pattern: each lane only its own databases', () => {
+		const base = { explicitUrl: false, githubActions: undefined };
+		const at = (name: string) => `postgres://u:p@localhost:5432/${name}`;
+		const e2e = (name: string) =>
+			checkTestDbGuard({ testDatabaseUrl: at(name), ...base, dbNamePattern: E2E_DB_PATTERN });
+		expect(e2e('ustay_e2e').allowed).toBe(true);
+		expect(e2e('ustay_e2e_4310').allowed).toBe(true);
+		for (const bad of ['ustay_test', 'local', 'ustay_e2e_', 'ustay_e2e_x', 'ustay_e2e_1; drop'])
+			expect(e2e(bad).allowed).toBe(false);
+		// The db lane's default stays exact.
+		expect(checkTestDbGuard({ testDatabaseUrl: at('ustay_e2e'), ...base }).allowed).toBe(false);
+		expect(checkTestDbGuard({ testDatabaseUrl: at('ustay_test'), ...base }).allowed).toBe(true);
+	});
+
+	it('names the right env var in refusals', () => {
+		const r = checkTestDbGuard({
+			testDatabaseUrl: undefined,
+			explicitUrl: false,
+			githubActions: undefined,
+			urlVar: 'E2E_DATABASE_URL'
+		});
+		expect(!r.allowed && r.reason).toContain('E2E_DATABASE_URL');
 	});
 });
