@@ -64,3 +64,5 @@ Linear: <url>
 - `UST-55.md` — Sign-in / sign-up forms + `Field` primitive (**DONE + merged**, PR #20 → form actions via better-auth, `(auth)/validate.ts`)
 - `UST-13.md` — Amenities catalogue + property/room joins + seed (in progress, Haiku)
 - `UST-41.md` — DB integration-test lane (`test:db`) + CI Postgres job + non-JS sign-in redirect bug (in progress, Sonnet)
+- `UST-61.md` — Footer component in `(platform)` layout (in progress, Opus)
+- `UST-60.md` — Nav full mobile menu (in progress, Opus)
