@@ -67,5 +67,5 @@ Linear: <url>
 - `UST-61.md` — Footer component in `(platform)` layout (**DONE + merged**, PR #24)
 - `UST-60.md` — Nav full mobile menu (in progress, Opus)
 - `UST-14.md` — Media model: per-property library + hero/gallery/room placements (in progress, Opus)
-- `UST-53.md` — Line-splitting for display type via GSAP SplitText (in progress, Opus)
+- `UST-53.md` — Line-splitting for display type (**DONE + merged**, PR #26 → SplitText inside `displayEntrance`, plain-text headings, text-only split + MutationObserver bail-out)
 - `UST-77.md` — End-to-end Playwright lane + CI `e2e` job (in progress, Sonnet)
