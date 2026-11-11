@@ -69,3 +69,4 @@ Linear: <url>
 - `UST-14.md` — Media model: per-property library + hero/gallery/room placements (in progress, Opus)
 - `UST-53.md` — Line-splitting for display type (**DONE + merged**, PR #26 → SplitText inside `displayEntrance`, plain-text headings, text-only split + MutationObserver bail-out)
 - `UST-77.md` — End-to-end Playwright lane + CI `e2e` job (in progress, Sonnet)
+- `UST-52.md` — ZoomGallery feature component (in progress, Opus)
