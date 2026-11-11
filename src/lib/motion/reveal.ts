@@ -15,7 +15,8 @@ import {
 	loadSplitText,
 	motionAttachment,
 	primeStyles,
-	resolveTargets
+	resolveTargets,
+	type SplitTextStatic
 } from './internal';
 
 export type RevealOptions = {
@@ -120,13 +121,22 @@ export type DisplayEntranceOptions = {
  *   masked lines only once web fonts have settled (the serif breaks lines
  *   differently from its fallback), and only at the moment the entrance plays —
  *   for `onScroll`, when it scrolls in, so the lines match the width at that
- *   moment. A resize mid-entrance re-splits (`autoSplit`) without restarting it.
+ *   moment. A resize mid-entrance re-splits (`autoSplit`) without restarting it
+ *   or its delay.
  * - **Gone once it lands.** When the lines have risen, the split is reverted and
- *   the heading's own DOM is put back: it re-wraps naturally from then on, no
- *   mask clips an italic descender, and Svelte keeps updating the nodes it
- *   rendered. (The split works on a copy of them in the meantime.)
- * - **Same accessible name.** While split, the heading carries an `aria-label`
- *   of its original text and the line wrappers are `aria-hidden`.
+ *   the heading's own DOM is put back: it re-wraps naturally from then on and no
+ *   mask clips an italic descender.
+ * - **Svelte's nodes are never split.** They wait in a detached holder while a
+ *   copy is split, and go back as they are *now*. If Svelte touches them
+ *   mid-entrance (a `{name}` update, an `{#if}` flip), the entrance stops there
+ *   and the live content is shown at once rather than a stale copy.
+ * - **Text only.** Only text and inline formatting (`em`, `strong`, `i`, `b`,
+ *   `span`, `br`) is split. A heading holding a link, a button or anything else
+ *   interactive keeps its real nodes and just fades in — a copy would lose its
+ *   handlers and sit inside an `aria-hidden` line.
+ * - **Same accessible name.** While split, the heading is labelled with its text
+ *   as rendered (or its own `aria-label`), re-read on every re-split, and the
+ *   line wrappers are `aria-hidden`.
  * - **Nothing to undo without motion.** The server renders the plain text; with
  *   no JS or reduced motion nothing is split or hidden at all. Until the split
  *   is ready the heading is only faded (never dropped from the accessibility
@@ -134,51 +144,89 @@ export type DisplayEntranceOptions = {
  *
  * Hand-split markup (one block child per line) still works: each block child
  * simply becomes a line of the split.
+ *
+ * (UST-53 removed the old `select` option along with that hand-split contract.)
  */
 export function displayEntrance(options: DisplayEntranceOptions = {}): Attachment<Element> {
 	const { yPercent, duration, stagger, delay, start } = {
 		...motionDefaults.displayEntrance,
 		...options
 	};
+	const ease = () => options.ease ?? editorialEase();
 
 	return motionAttachment(
 		(element, { gsap, ScrollTrigger }, _reduced, SplitText) => {
-			/** Splits and plays; returns the restore of the authored DOM. */
-			const play = () => {
-				// Svelte's own nodes are set aside untouched and SplitText cuts up a
-				// copy, so the split's `innerHTML` revert never orphans the nodes
-				// Svelte still holds references to.
-				const authored = [...element.childNodes];
-				const label = accessibleText(element);
-				element.replaceChildren(...authored.map((node) => node.cloneNode(true)));
+			/** For content that can't be split: the same beat, as a fade. */
+			const fade = () => {
+				gsap.fromTo(
+					element,
+					{ opacity: 0 },
+					{ opacity: 1, duration, delay, ease: ease(), clearProps: 'opacity' }
+				);
+			};
 
-				let restored = false;
-				const restore = () => {
-					if (restored) return;
-					restored = true;
-					split.revert();
-					element.replaceChildren(...authored);
+			/** Splits and plays; returns the teardown that hands Svelte's nodes back. */
+			const split = () => {
+				// Svelte's live nodes move to a detached holder — still parented, so
+				// Svelte's own inserts keep landing somewhere we can watch — and
+				// SplitText cuts up a copy.
+				const holder = document.createElement('span');
+				holder.append(...element.childNodes);
+				element.append(...[...holder.childNodes].map((node) => node.cloneNode(true)));
+
+				const authoredLabel = element.getAttribute('aria-label');
+				const startedAt = gsap.ticker.time;
+				// Assigned below, but read by `finish`, which can run before that.
+				let instance: InstanceType<SplitTextStatic> | undefined = undefined;
+				let finished = false;
+				let landedEarly = false;
+
+				const finish = () => {
+					if (finished) return;
+					// A tween that completes on creation (`duration: 0`) lands while
+					// SplitText.create is still on the stack: finish right after it.
+					if (!instance) {
+						landedEarly = true;
+						return;
+					}
+					finished = true;
+					watcher.disconnect();
+					instance.revert(); // also reverts the tween, if it is still running
+					element.replaceChildren(...holder.childNodes);
 				};
 
-				const split = SplitText.create(element, {
+				// Svelte changed its content mid-entrance: stop, and show it as it is.
+				const watcher = new MutationObserver(finish);
+				watcher.observe(holder, {
+					childList: true,
+					subtree: true,
+					characterData: true,
+					attributes: true
+				});
+
+				instance = SplitText.create(element, {
 					type: 'lines',
 					mask: 'lines',
 					tag: 'span',
 					linesClass: 'display-line',
-					aria: 'auto',
+					// Handled below: `'auto'` names the heading from `textContent`, which
+					// runs words together across a `<br>` and overrides an authored label.
+					aria: 'none',
 					autoSplit: true,
-					// Returned, so a re-split on resize carries the progress over
-					// instead of replaying from the top.
+					// Runs again on every re-split (resize, late font). The tween is
+					// returned so SplitText carries its progress over; the delay isn't
+					// part of that progress, so only what's left of it is reapplied.
 					onSplit: (self) => {
-						// `aria: 'auto'` names the heading from `textContent`, which runs
-						// words together across a `<br>` and overrides an authored label.
-						element.setAttribute('aria-label', label);
-						// `span`s keep the heading's content valid phrasing content, but
-						// SplitText only styles its `div`s: a transform and a clip both
-						// need a block box.
+						// `span`s keep the heading valid phrasing content, but SplitText
+						// only styles its `div`s: a transform and a clip need a block box.
 						for (const box of [...self.masks, ...self.lines]) {
 							(box as HTMLElement).style.display = 'block';
+							box.setAttribute('aria-hidden', 'true');
 						}
+						element.setAttribute(
+							'aria-label',
+							authoredLabel ?? normaliseSpace((element as HTMLElement).innerText)
+						);
 						return gsap.fromTo(
 							self.lines,
 							{ yPercent },
@@ -186,9 +234,9 @@ export function displayEntrance(options: DisplayEntranceOptions = {}): Attachmen
 								yPercent: 0,
 								duration,
 								stagger,
-								delay,
-								ease: options.ease ?? editorialEase(),
-								onComplete: restore
+								delay: Math.max(0, delay - (gsap.ticker.time - startedAt)),
+								ease: ease(),
+								onComplete: finish
 							}
 						);
 					}
@@ -197,11 +245,14 @@ export function displayEntrance(options: DisplayEntranceOptions = {}): Attachmen
 				// The masks hide the lines now (`fromTo` rendered them at their start),
 				// so the pre-split fade can come off.
 				if (element instanceof HTMLElement) element.style.removeProperty('opacity');
-				return restore;
+				if (landedEarly) finish();
+				return finish;
 			};
 
+			const play = () => (splittable(element) ? split() : fade());
+
 			if (options.onScroll && !isInViewport(element)) {
-				// A nested context, so a split made on scroll-in is still reverted
+				// A nested context, so whatever plays on scroll-in is still reverted
 				// with everything else on teardown.
 				const later = gsap.context(() => {});
 				ScrollTrigger.create({
@@ -227,13 +278,14 @@ export function displayEntrance(options: DisplayEntranceOptions = {}): Attachmen
 	);
 }
 
-/**
- * The name a heading should keep while it is split: an authored `aria-label`,
- * or its text as rendered — `innerText`, so a `<br>` reads as a space.
- */
-function accessibleText(element: Element): string {
-	const authored = element.getAttribute('aria-label');
-	if (authored) return authored;
-	const text = element instanceof HTMLElement ? element.innerText : element.textContent;
-	return (text ?? '').replace(/\s+/g, ' ').trim();
+/** Inline formatting that is safe to copy: no behaviour, no semantics to lose. */
+const SPLITTABLE = new Set(['EM', 'STRONG', 'I', 'B', 'SPAN', 'BR']);
+
+/** Is this heading only text and inline formatting? */
+function splittable(element: Element): boolean {
+	return [...element.querySelectorAll('*')].every((child) => SPLITTABLE.has(child.tagName));
+}
+
+function normaliseSpace(text: string): string {
+	return text.replace(/\s+/g, ' ').trim();
 }

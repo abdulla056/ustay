@@ -70,11 +70,13 @@ let splitText: Promise<SplitTextStatic> | undefined;
  * only `displayEntrance` needs it — a page with no display type never fetches it.
  */
 export function loadSplitText(): Promise<SplitTextStatic> {
-	splitText ??= loadMotion().then(async ({ gsap }) => {
-		const { SplitText } = await import('gsap/SplitText');
-		gsap.registerPlugin(SplitText);
-		return SplitText;
-	});
+	// Fetched alongside GSAP rather than after it — no extra round trip.
+	splitText ??= Promise.all([loadMotion(), import('gsap/SplitText')]).then(
+		([{ gsap }, { SplitText }]) => {
+			gsap.registerPlugin(SplitText);
+			return SplitText;
+		}
+	);
 	return splitText;
 }
 
@@ -82,15 +84,17 @@ export function loadSplitText(): Promise<SplitTextStatic> {
  * Resolves once the page's web fonts have settled — or after `timeout` ms,
  * whichever is first. Anything that measures type (line splitting) must wait
  * for this, or it measures the fallback face and breaks lines in the wrong
- * places. The cap keeps a stalled font request from stranding primed content
- * in its hidden start state; a late font is still handled by re-measuring.
+ * places. The cap is short because the hero headline is the page's LCP
+ * element: a slow font must not hold it hidden. A font that lands after the
+ * cap is still handled — `SplitText`'s `autoSplit` re-measures on it.
  */
-export function fontsReady(timeout = 2500): Promise<void> {
+export function fontsReady(timeout = 1200): Promise<void> {
 	if (!browser || !document.fonts) return Promise.resolve();
+	let timer: ReturnType<typeof setTimeout> | undefined;
 	return Promise.race([
 		document.fonts.ready.then(() => undefined),
-		new Promise<void>((resolve) => setTimeout(resolve, timeout))
-	]);
+		new Promise<void>((resolve) => (timer = setTimeout(resolve, timeout)))
+	]).finally(() => clearTimeout(timer));
 }
 
 /**

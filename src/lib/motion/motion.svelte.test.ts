@@ -135,18 +135,37 @@ describe('displayEntrance', () => {
 
 	it('breaks lines where the text actually wraps, and re-splits on resize', async () => {
 		const element = mount(headline, 'h1');
-		element.style.width = '6ch';
+		Object.assign(element.style, { width: '6ch', fontSize: '20px', lineHeight: '25px' });
 
 		attach(displayEntrance({ duration: 3, delay: 0 })(element));
 
 		await expect.poll(() => lines(element).length, { timeout: 5000 }).toBeGreaterThan(1);
-		// Every line is a single row of text, so the split matches the wrap.
+		// Each line is exactly one line box tall: the split matches the wrap.
 		for (const line of lines(element)) {
-			expect(line.getClientRects()).toHaveLength(1);
+			expect(line.getBoundingClientRect().height).toBeCloseTo(25, 0);
 		}
 
 		element.style.width = '60ch';
 		await expect.poll(() => lines(element).length, { timeout: 5000 }).toBe(1);
+	});
+
+	it('carries the remaining delay across a re-split instead of restarting it', async () => {
+		const element = mount(headline, 'h1');
+		element.style.width = '60ch';
+
+		attach(displayEntrance({ duration: 0.2, delay: 2 })(element));
+		await expect.poll(() => lines(element).length, { timeout: 5000 }).toBe(1);
+		const splitAt = performance.now();
+		const [first] = lines(element);
+
+		// Resize well inside the delay window; SplitText re-splits ~200ms later.
+		await new Promise((resolve) => setTimeout(resolve, 1200));
+		element.style.width = '50ch';
+		await expect.poll(() => first.isConnected, { timeout: 2000 }).toBe(false);
+
+		// Landing on the original schedule (~2.2s) — a restarted delay would be ~3.6s.
+		await expect.poll(() => lines(element).length, { timeout: 3000 }).toBe(0);
+		expect(performance.now() - splitAt).toBeLessThan(2900);
 	});
 
 	it('keeps the original text as the accessible name while split', async () => {
@@ -156,7 +175,10 @@ describe('displayEntrance', () => {
 		await expect.poll(() => lines(element).length, { timeout: 5000 }).toBeGreaterThan(0);
 
 		expect(element.getAttribute('aria-label')).toBe(name);
-		for (const line of lines(element)) expect(line.getAttribute('aria-hidden')).toBe('true');
+		for (const line of lines(element)) {
+			expect(line.getAttribute('aria-hidden')).toBe('true');
+			expect(line.parentElement?.getAttribute('aria-hidden')).toBe('true');
+		}
 		// Computed by the browser's accessibility tree, not by reading attributes.
 		await expect.element(page.getByRole('heading', { level: 1, name, exact: true })).toBeVisible();
 	});
@@ -182,14 +204,70 @@ describe('displayEntrance', () => {
 
 		attach(displayEntrance({ duration: 0.2, delay: 0 })(element));
 		await expect.poll(() => lines(element).length, { timeout: 5000 }).toBeGreaterThan(0);
-		// What Svelte would do to a `{name}` mid-entrance: update its own text node.
-		(authored[0] as Text).nodeValue = 'Every room has a ';
 
 		await expect.poll(() => lines(element).length, { timeout: 5000 }).toBe(0);
 		expect([...element.childNodes]).toEqual(authored);
-		expect(element.textContent).toBe('Every room has a story.');
 		expect(element.hasAttribute('aria-label')).toBe(false);
 		expect(element.getAttribute('style') ?? '').toBe('');
+	});
+
+	it('lands cleanly when the tween completes the moment it is created', async () => {
+		// `duration: 0, delay: 0` completes inside SplitText.create, before the
+		// split instance even exists.
+		const element = mount(headline, 'h1');
+		const authored = [...element.childNodes];
+		const errors = vi.spyOn(console, 'error');
+
+		attach(displayEntrance({ duration: 0, delay: 0 })(element));
+
+		await expect.poll(() => element.style.opacity, { timeout: 5000 }).toBe('');
+		expect(lines(element)).toHaveLength(0);
+		expect([...element.childNodes]).toEqual(authored);
+		expect(element.hasAttribute('aria-label')).toBe(false);
+		expect(errors).not.toHaveBeenCalled();
+	});
+
+	it('stops and shows the live text when Svelte updates it mid-entrance', async () => {
+		const element = mount(headline, 'h1');
+		const authored = [...element.childNodes];
+
+		attach(displayEntrance({ duration: 5, delay: 0 })(element));
+		await expect.poll(() => lines(element).length, { timeout: 5000 }).toBeGreaterThan(0);
+		// What Svelte does to a `{name}`: write its own text node.
+		(authored[0] as Text).nodeValue = 'Every room has a ';
+
+		await expect.poll(() => lines(element).length, { timeout: 1000 }).toBe(0);
+		expect([...element.childNodes]).toEqual(authored);
+		expect(element.textContent).toBe('Every room has a story.');
+		expect(element.hasAttribute('aria-label')).toBe(false);
+	});
+
+	it('stops and shows the live structure when Svelte adds or removes nodes mid-entrance', async () => {
+		const element = mount('Every stay has a <em>story.</em><!---->', 'h1');
+		const [text, em, anchor] = [...element.childNodes];
+
+		attach(displayEntrance({ duration: 5, delay: 0 })(element));
+		await expect.poll(() => lines(element).length, { timeout: 5000 }).toBeGreaterThan(0);
+		// What an `{#if}` does: insert before its anchor comment, drop a branch.
+		const added = document.createElement('strong');
+		added.textContent = ' Yours.';
+		(anchor as Comment).before(added);
+		em.remove();
+
+		await expect.poll(() => lines(element).length, { timeout: 1000 }).toBe(0);
+		expect([...element.childNodes]).toEqual([text, added, anchor]);
+	});
+
+	it('does not split interactive content, and fades it in on its real nodes', async () => {
+		const element = mount('Read <a href="#stays">the story</a>', 'h1');
+		const link = element.querySelector('a');
+
+		attach(displayEntrance({ duration: 0.2, delay: 0 })(element));
+		await expect.poll(() => element.style.opacity, { timeout: 5000 }).toBe('');
+
+		expect(lines(element)).toHaveLength(0);
+		expect(element.querySelector('a')).toBe(link);
+		expect(element.hasAttribute('aria-label')).toBe(false);
 	});
 
 	it('restores the authored DOM when torn down mid-entrance', async () => {
