@@ -265,17 +265,19 @@ that touches the row, after the row is fetched.
 
 ## Tests
 
-`vite.config.ts` defines three Vitest projects, selected purely by filename:
+`vite.config.ts` defines four Vitest projects, selected purely by filename:
 
-| File pattern       | Project     | Runs in                            |
-| ------------------ | ----------- | ---------------------------------- |
-| `*.svelte.test.ts` | `client`    | Chromium, real DOM.                |
-| `*.test.ts`        | `server`    | Node. Also `src/lib/server/**`.    |
-| `*.stories.svelte` | `storybook` | Chromium, via the Storybook addon. |
+| File pattern       | Project     | Runs in                             |
+| ------------------ | ----------- | ----------------------------------- |
+| `*.svelte.test.ts` | `client`    | Chromium, real DOM.                 |
+| `*.test.ts`        | `server`    | Node. Also `src/lib/server/**`.     |
+| `*.stories.svelte` | `storybook` | Chromium, via the Storybook addon.  |
+| `*.db.test.ts`     | `db`        | Node, real Postgres (`ustay_test`). |
 
 So a component test must be `Thing.svelte.test.ts`, and a repository or helper test must not be.
 Keep unit tests database-free — `src/lib/server/db/helpers.test.ts` is the model. Anything needing
-real SQL is an integration test and must stay out of the default `bun run test` gate.
+real SQL is an integration test: name it `*.db.test.ts` and run it with `bun run test:db` (see
+`docs/DATABASE.md`, "Integration tests"); it stays out of the default `bun run test` gate.
 
 ## Adding a feature — checklist
 

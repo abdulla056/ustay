@@ -190,4 +190,36 @@ Both entry points are guarded, `NODE_ENV`-checked, and safe to script: `bun run 
 5. Export the table and its `relations()` from `schema.ts`.
 6. `bun run db:generate`, read the SQL, commit it with the schema change.
 7. Tests that only assert schema shape need no database — see `helpers.test.ts`. Anything that
-   needs real SQL is an integration test and must not run in the default `bun run test` gate.
+   needs real SQL is an integration test (`*.db.test.ts`, see "Integration tests" below) and must
+   not run in the default `bun run test` gate.
+
+## Integration tests
+
+Real queries against Postgres run in their own lane, never in `bun run test`.
+
+```bash
+docker compose up -d     # Colima/Docker; db at localhost:5432
+bun run test:db          # = vitest run --project db
+```
+
+- **Files:** `*.db.test.ts`, next to the code they test (`property.repo.db.test.ts`). The
+  `client`/`server` projects exclude them; the `db` project (see `vite.config.ts`) runs only them,
+  with `fileParallelism: false`. `bun run test` passes `--project` flags for the other three
+  projects, so it needs no database.
+- **Database:** `ustay_test` on the same server, never `local`. The URL is `TEST_DATABASE_URL`, or
+  `DATABASE_URL` with the db name swapped. `src/lib/server/test/global-setup.ts` **drops and
+  recreates** `ustay_test` on every run, then applies the committed `drizzle/` migrations with
+  drizzle's migrator, so the migration files themselves are tested from zero. It refuses to run
+  unless the database is named `ustay_test` and the host is local or `CI=true`
+  (`src/lib/server/test/db-url.ts`, unit-tested without a database).
+- **`$env` resolution:** under Vitest, `vite.config.ts` repoints `DATABASE_URL` to the test URL
+  before SvelteKit snapshots `$env/dynamic/private`, so `$lib/server/db` and `$lib/server/auth`
+  work unchanged in tests. Only when `VITEST` is set; `vite dev`/`build` are untouched.
+- **Isolation:** every table in `public` is truncated before each test
+  (`TRUNCATE … RESTART IDENTITY CASCADE`, tables discovered from `pg_tables`, so new tables are
+  covered automatically; `src/lib/server/test/setup.ts`). Not a per-test rollback: repositories
+  open their own transactions, and tests must see real commits and rollbacks. Tests build their
+  own data; don't rely on another test's rows.
+- **Helpers:** `$lib/server/test/db.ts` re-exports `db` and `truncateAll`.
+- **CI:** the `db integration` job in `.github/workflows/ci.yml` runs `bun run test:db` against a
+  `postgres:17` service container.

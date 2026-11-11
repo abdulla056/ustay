@@ -120,7 +120,12 @@ describe('check constraints', () => {
 
 	it('accepts a zero nightly rate', async () => {
 		const p = await makeProperty('Property A');
-		const r = await insertRoom({ propertyId: p.id, name: 'Free', ...roomBase, nightlyRateMinor: 0 });
+		const r = await insertRoom({
+			propertyId: p.id,
+			name: 'Free',
+			...roomBase,
+			nightlyRateMinor: 0
+		});
 		expect(r.nightlyRateMinor).toBe(0);
 	});
 });
