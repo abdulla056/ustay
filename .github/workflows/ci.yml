@@ -51,8 +51,12 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-playwright-
 
+      # `--with-deps` runs apt, which has failed on runner DNS outages
+      # ("Temporary failure resolving archive.ubuntu.com"). GitHub's Ubuntu
+      # images already ship Chrome's system libraries, so fall back to a
+      # browser-only install rather than failing the whole job.
       - name: Install Playwright chromium
-        run: bunx playwright install --with-deps chromium
+        run: bunx playwright install --with-deps chromium || bunx playwright install chromium
 
       - name: Type-check
         run: bun run check
