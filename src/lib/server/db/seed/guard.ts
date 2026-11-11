@@ -33,7 +33,7 @@ function deny(reason: string): GuardResult {
  * machine reaching the container, `db` for anything running inside the compose network. Anything
  * else — a managed Postgres host, a real domain — is refused by `checkResetGuard`.
  */
-const LOCAL_HOSTNAMES = new Set(['localhost', '127.0.0.1', '::1', 'db']);
+export const LOCAL_HOSTNAMES = new Set(['localhost', '127.0.0.1', '::1', 'db']);
 
 /** Shared by both guards: refuse in production, require `DATABASE_URL` to be set at all. */
 export function checkSeedGuard({ nodeEnv, databaseUrl }: SeedGuardEnv): GuardResult {
@@ -54,7 +54,8 @@ export function checkResetGuard(env: SeedGuardEnv): GuardResult {
 
 	let hostname: string;
 	try {
-		hostname = new URL(env.databaseUrl!).hostname;
+		// `new URL()` brackets IPv6 hosts (`[::1]`); the allowlist stores them bare.
+		hostname = new URL(env.databaseUrl!).hostname.replace(/^\[|\]$/g, '');
 	} catch {
 		return deny(`DATABASE_URL is not a valid URL: ${env.databaseUrl}`);
 	}
