@@ -54,9 +54,10 @@ jobs:
       # `--with-deps` runs apt, which has failed on runner DNS outages
       # ("Temporary failure resolving archive.ubuntu.com"). GitHub's Ubuntu
       # images already ship Chrome's system libraries, so fall back to a
-      # browser-only install rather than failing the whole job.
+      # browser-only install rather than failing the whole job. `timeout 120`
+      # stops apt's DNS retries from stalling the job for ~10 minutes.
       - name: Install Playwright chromium
-        run: bunx playwright install --with-deps chromium || bunx playwright install chromium
+        run: timeout 120 bunx playwright install --with-deps chromium || bunx playwright install chromium
 
       - name: Type-check
         run: bun run check
