@@ -25,6 +25,19 @@ export const platformNavLinks: readonly NavLink[] = [
 	{ label: 'About', href: '/about' }
 ];
 
+/** `aria-current` for a nav destination: `page` when it is the page being shown. */
+export function currentPage(href: string, pathname: string): 'page' | undefined {
+	return href === pathname ? 'page' : undefined;
+}
+
+/**
+ * A click that should keep the browser's own meaning — new tab, new window,
+ * download, middle-click — rather than be handled by the nav.
+ */
+export function isModifiedClick(event: MouseEvent): boolean {
+	return event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0;
+}
+
 /**
  * Click handler for a nav destination, shared by the bar and the mobile menu.
  *
@@ -34,15 +47,25 @@ export const platformNavLinks: readonly NavLink[] = [
  * Returns `true` when it took the click, so a caller can follow up (the mobile
  * menu closes itself, since no navigation will happen to close it).
  *
+ * The target is looked up by id rather than as a selector, so an id that is not a
+ * valid CSS selector (`#2026-retreats`) still works; and the click is only taken
+ * once the target is known to exist — otherwise the browser's own jump runs.
+ *
  * The skip link is pointedly *not* routed through here: its job is to move focus,
  * which only the browser's own hash navigation does.
  */
 export function jumpToAnchor(event: MouseEvent, href: string, offset: number): boolean {
-	if (!href.startsWith('#') || event.defaultPrevented) return false;
-	// Leave modified clicks their native meaning (new tab, new window, download).
-	if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return false;
+	if (!href.startsWith('#') || event.defaultPrevented || isModifiedClick(event)) return false;
+
+	let target: HTMLElement | null = null;
+	try {
+		target = document.getElementById(decodeURIComponent(href.slice(1)));
+	} catch {
+		// Malformed percent-encoding: leave it to the browser.
+	}
+	if (!target) return false;
 
 	event.preventDefault();
-	scrollTo(href, { offset });
+	scrollTo(target, { offset });
 	return true;
 }

@@ -42,11 +42,11 @@
 	// cannot interpolate a gradient — only its opacity.
 	import { page } from '$app/state';
 	import { pageTone, type Tone } from '$lib/motion';
-	import Button from './Button.svelte';
 	import Link from './Link.svelte';
+	import NavCta from './NavCta.svelte';
 	import NavMenu from './NavMenu.svelte';
 	import Wordmark from './Wordmark.svelte';
-	import { jumpToAnchor, platformNavLinks, type NavLink } from './nav';
+	import { currentPage, jumpToAnchor, platformNavLinks, type NavLink } from './nav';
 
 	type Props = {
 		/** Top-level destinations. Defaults to `platformNavLinks`. */
@@ -73,6 +73,13 @@
 		 * omits it; whoever renders the nav owns the matching `id`.
 		 */
 		skipTo?: string | null;
+		/**
+		 * Below `md` the links live behind a `Menu` toggle that opens a dialog. Until
+		 * the page hydrates — or with no JS at all — the toggle is instead a plain link
+		 * here, to somewhere that lists the site's links. The `(platform)` layout's
+		 * footer carries this id. `null` shows no toggle until hydration.
+		 */
+		menuFallback?: string | null;
 		class?: string;
 	};
 
@@ -84,6 +91,7 @@
 		anchorOffset = -96,
 		scrim = true,
 		skipTo = '#content',
+		menuFallback = '#site-footer',
 		class: className
 	}: Props = $props();
 
@@ -92,8 +100,6 @@
 	// `inverse` is the dark scope: over the cinematic hero the nav is on ink, so it
 	// wants the lifted dark-tone neutrals. `light` is the paper scope.
 	const scope = $derived(tone === 'dark' ? 'inverse' : 'light');
-
-	const current = (href: string) => (page.url.pathname === href ? ('page' as const) : undefined);
 
 	// Anchor links are scrolled through the smooth scroller — see `jumpToAnchor`.
 	const jump = (event: MouseEvent, href: string) => jumpToAnchor(event, href, anchorOffset);
@@ -161,7 +167,7 @@
 								href={link.href}
 								variant="quiet"
 								class="text-sm font-medium duration-700"
-								aria-current={current(link.href)}
+								aria-current={currentPage(link.href, page.url.pathname)}
 								onclick={(event: MouseEvent) => jump(event, link.href)}
 							>
 								{link.label}
@@ -175,21 +181,13 @@
 		<div class="flex items-center gap-6">
 			{#if cta}
 				{@const action = cta}
-				<Button
-					variant="outline"
-					size="sm"
-					href={action.href}
-					class="duration-700"
-					onclick={(event: MouseEvent) => jump(event, action.href)}
-				>
-					{action.label}<span aria-hidden="true">↗</span>
-				</Button>
+				<NavCta cta={action} onclick={(event) => jump(event, action.href)} />
 			{/if}
 
 			<!-- Below `md` the links move into a full-screen menu. A nav with no links has
 			     nothing to put in one, so it stays mark + CTA. -->
 			{#if links.length}
-				<NavMenu {links} {cta} {home} {anchorOffset} barClass={bar} />
+				<NavMenu {links} {cta} {home} {anchorOffset} fallback={menuFallback} barClass={bar} />
 			{/if}
 		</div>
 	</div>
