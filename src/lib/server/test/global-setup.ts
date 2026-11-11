@@ -7,18 +7,33 @@
 import { drizzle } from 'drizzle-orm/postgres-js';
 import { migrate } from 'drizzle-orm/postgres-js/migrator';
 import postgres from 'postgres';
+import type { TestProject } from 'vitest/node';
 import { checkTestDbGuard, resolveTestDatabaseUrl, TEST_DB_NAME, withDatabaseName } from './db-url';
 
-export default async function setup() {
-	const testDatabaseUrl = resolveTestDatabaseUrl(process.env);
-	const guard = checkTestDbGuard({ testDatabaseUrl, ci: process.env.CI });
+/** Maintenance database used to run DROP/CREATE DATABASE; override with TEST_DB_ADMIN_DATABASE. */
+const DEFAULT_ADMIN_DB = 'postgres';
+
+export default async function setup(project: TestProject) {
+	// The `db` project's `test.env` (see vite.config.ts) holds the resolved test URL; the main
+	// process's own `process.env` does not load `.env`.
+	const projectEnv = project.config.env as Record<string, string | undefined>;
+	const env = { ...process.env, ...projectEnv };
+	const testDatabaseUrl = resolveTestDatabaseUrl(env);
+	const guard = checkTestDbGuard({
+		testDatabaseUrl,
+		explicitUrl: Boolean(process.env.TEST_DATABASE_URL),
+		githubActions: process.env.GITHUB_ACTIONS
+	});
 	if (!guard.allowed) throw new Error(`Refusing to run DB tests: ${guard.reason}`);
 
 	// DROP/CREATE DATABASE can't run on the database being dropped; use the maintenance db.
-	const admin = postgres(withDatabaseName(testDatabaseUrl!, 'postgres'), {
-		max: 1,
-		onnotice: () => {}
-	});
+	const admin = postgres(
+		withDatabaseName(testDatabaseUrl!, env.TEST_DB_ADMIN_DATABASE || DEFAULT_ADMIN_DB),
+		{
+			max: 1,
+			onnotice: () => {}
+		}
+	);
 	try {
 		await admin.unsafe(`DROP DATABASE IF EXISTS ${TEST_DB_NAME} WITH (FORCE)`);
 		await admin.unsafe(`CREATE DATABASE ${TEST_DB_NAME}`);

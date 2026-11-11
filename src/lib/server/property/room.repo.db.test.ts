@@ -54,6 +54,16 @@ describe('listRoomsForProperty / reorderRooms', () => {
 		expect(rooms.map((r) => r.name)).toEqual(['First', 'Second']);
 	});
 
+	it('breaks sortOrder ties by createdAt', async () => {
+		const p = await makeProperty('Property A');
+		for (const name of ['early', 'middle', 'late']) {
+			await insertRoom({ propertyId: p.id, name, sortOrder: 5, ...roomBase });
+		}
+		const rooms = await listRoomsForProperty(p.id);
+		expect(rooms.map((r) => r.sortOrder)).toEqual([5, 5, 5]);
+		expect(rooms.map((r) => r.name)).toEqual(['early', 'middle', 'late']);
+	});
+
 	it('reorders rooms to the given id order', async () => {
 		const p = await makeProperty('Property A');
 		const [r0, r1, r2] = [
@@ -76,7 +86,10 @@ describe('listRoomsForProperty / reorderRooms', () => {
 			/not found on property/
 		);
 
-		expect((await listRoomsForProperty(p.id)).map((r) => r.name)).toEqual(['m0', 'm1']);
+		// Each room's own sortOrder: if the rollback were missing, m1 would be 0 here (createdAt
+		// alone would still list [m0, m1], so asserting the order is not enough).
+		expect((await findRoomById(mine0.id))?.sortOrder).toBe(0);
+		expect((await findRoomById(mine1.id))?.sortOrder).toBe(1);
 		expect((await findRoomById(foreign.id))?.sortOrder).toBe(0);
 	});
 });

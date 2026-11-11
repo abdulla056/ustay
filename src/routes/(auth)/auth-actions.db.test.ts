@@ -35,6 +35,14 @@ function formEvent(fields: Record<string, string>): ActionEvent {
 	return { request } as unknown as ActionEvent;
 }
 
+/** Run a signUp action that must succeed; a fail(400) here would otherwise go unnoticed. */
+async function expectSignedUp(fields: Record<string, string>) {
+	expect(await redirectOf(() => signUp.default(formEvent(fields)))).toMatchObject({
+		status: 303,
+		location: '/dashboard'
+	});
+}
+
 async function redirectOf(run: () => unknown) {
 	try {
 		await run();
@@ -68,7 +76,7 @@ describe('sign-up action', () => {
 	});
 
 	it('fails 400 for a duplicate email', async () => {
-		await redirectOf(() => signUp.default(formEvent(account)));
+		await expectSignedUp(account);
 		const result = await signUp.default(formEvent(account));
 		expect(result).toMatchObject({ status: 400 });
 	});
@@ -76,11 +84,11 @@ describe('sign-up action', () => {
 
 describe('sign-in action', () => {
 	async function seedUser() {
-		await redirectOf(() =>
-			signUp.default(
-				formEvent({ name: 'Dev Owner', email: DEV_USER_EMAIL, password: DEV_USER_PASSWORD })
-			)
-		);
+		await expectSignedUp({
+			name: 'Dev Owner',
+			email: DEV_USER_EMAIL,
+			password: DEV_USER_PASSWORD
+		});
 	}
 
 	it('redirects 303 to /dashboard on valid credentials', async () => {

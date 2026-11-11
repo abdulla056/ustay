@@ -25,23 +25,43 @@ describe('resolveTestDatabaseUrl', () => {
 
 describe('checkTestDbGuard', () => {
 	const ok = 'postgres://root:pw@localhost:5432/ustay_test';
+	const local = { explicitUrl: false, githubActions: undefined };
 
 	it('allows a local ustay_test', () => {
-		expect(checkTestDbGuard({ testDatabaseUrl: ok, ci: undefined }).allowed).toBe(true);
+		expect(checkTestDbGuard({ testDatabaseUrl: ok, ...local }).allowed).toBe(true);
+	});
+
+	it.each(['127.0.0.1', '[::1]', 'db'])('allows local host %s', (host) => {
+		const testDatabaseUrl = `postgres://root:pw@${host}:5432/ustay_test`;
+		expect(checkTestDbGuard({ testDatabaseUrl, ...local }).allowed).toBe(true);
 	});
 
 	it('refuses the local dev database', () => {
-		expect(checkTestDbGuard({ testDatabaseUrl: LOCAL, ci: 'true' }).allowed).toBe(false);
+		const r = checkTestDbGuard({
+			testDatabaseUrl: LOCAL,
+			explicitUrl: true,
+			githubActions: 'true'
+		});
+		expect(r.allowed).toBe(false);
 	});
 
-	it('refuses a remote host outside CI, allows it in CI', () => {
-		const remote = 'postgres://u:p@db.example.com:5432/ustay_test';
-		expect(checkTestDbGuard({ testDatabaseUrl: remote, ci: undefined }).allowed).toBe(false);
-		expect(checkTestDbGuard({ testDatabaseUrl: remote, ci: 'true' }).allowed).toBe(true);
+	it('allows a remote host only on GitHub Actions with an explicit URL', () => {
+		const testDatabaseUrl = 'postgres://u:p@db.example.com:5432/ustay_test';
+		expect(checkTestDbGuard({ testDatabaseUrl, ...local }).allowed).toBe(false);
+		// CI=true alone (not GITHUB_ACTIONS) never opens the guard.
+		expect(
+			checkTestDbGuard({ testDatabaseUrl, explicitUrl: true, githubActions: undefined }).allowed
+		).toBe(false);
+		expect(
+			checkTestDbGuard({ testDatabaseUrl, explicitUrl: false, githubActions: 'true' }).allowed
+		).toBe(false);
+		expect(
+			checkTestDbGuard({ testDatabaseUrl, explicitUrl: true, githubActions: 'true' }).allowed
+		).toBe(true);
 	});
 
 	it('refuses a missing or invalid URL', () => {
-		expect(checkTestDbGuard({ testDatabaseUrl: undefined, ci: 'true' }).allowed).toBe(false);
-		expect(checkTestDbGuard({ testDatabaseUrl: 'nope', ci: 'true' }).allowed).toBe(false);
+		expect(checkTestDbGuard({ testDatabaseUrl: undefined, ...local }).allowed).toBe(false);
+		expect(checkTestDbGuard({ testDatabaseUrl: 'nope', ...local }).allowed).toBe(false);
 	});
 });

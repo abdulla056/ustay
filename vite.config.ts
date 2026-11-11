@@ -14,9 +14,10 @@ const dirname =
 	typeof __dirname !== 'undefined' ? __dirname : path.dirname(fileURLToPath(import.meta.url));
 
 // DB integration lane (UST-41, `*.db.test.ts`, `bun run test:db`). Tests run against `ustay_test`,
-// never the dev database. SvelteKit snapshots `$env/dynamic/private` from `process.env` + `.env`
-// when its plugin loads, so under Vitest (and only then — never `vite dev`/`build`) DATABASE_URL
-// is repointed here, before the plugin reads it. The global setup re-checks the URL (host, name).
+// never the dev database. The `db` project's `test.env` carries the test URL, and its alias swaps
+// SvelteKit's build-time `$env/dynamic/private` snapshot (which would hold `.env`'s DATABASE_URL)
+// for `src/lib/server/test/env.ts`, which reads that `test.env`. Other projects are untouched.
+// The global setup re-checks the URL (host, db name) before dropping anything.
 const DB_TEST_GLOB = 'src/**/*.db.test.{js,ts}';
 const dbTestEnv: Record<string, string> = {};
 if (process.env.VITEST) {
@@ -26,12 +27,12 @@ if (process.env.VITEST) {
 		DATABASE_URL: process.env.DATABASE_URL ?? dotenv.DATABASE_URL
 	});
 	if (testUrl) {
-		process.env.TEST_DATABASE_URL = testUrl;
-		process.env.DATABASE_URL = testUrl;
+		dbTestEnv.TEST_DATABASE_URL = testUrl;
 		dbTestEnv.DATABASE_URL = testUrl;
 	}
 	const secret = process.env.BETTER_AUTH_SECRET ?? dotenv.BETTER_AUTH_SECRET;
 	if (secret) dbTestEnv.BETTER_AUTH_SECRET = secret;
+	if (process.env.ORIGIN ?? dotenv.ORIGIN) dbTestEnv.ORIGIN = process.env.ORIGIN ?? dotenv.ORIGIN;
 }
 
 // More info at: https://storybook.js.org/docs/next/writing-tests/integrations/vitest-addon
@@ -86,9 +87,13 @@ export default defineConfig({
 
 			{
 				extends: './vite.config.ts',
+				resolve: {
+					alias: { '$env/dynamic/private': path.join(dirname, 'src/lib/server/test/env.ts') }
+				},
 				test: {
 					name: 'db',
 					environment: 'node',
+
 					include: [DB_TEST_GLOB],
 					env: dbTestEnv,
 					globalSetup: ['src/lib/server/test/global-setup.ts'],

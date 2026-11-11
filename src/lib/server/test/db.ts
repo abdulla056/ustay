@@ -5,8 +5,24 @@
  */
 import { sql } from 'drizzle-orm';
 import { db } from '$lib/server/db';
+import { checkTestDbGuard, resolveTestDatabaseUrl } from './db-url';
 
 export { db };
+
+/**
+ * The guarded test database URL, for tests that open their own connection (e.g. the seed client).
+ * Throws unless it is `ustay_test` on an allowed host — the same check the global setup ran.
+ */
+export function testDatabaseUrl(): string {
+	const url = resolveTestDatabaseUrl(process.env);
+	const guard = checkTestDbGuard({
+		testDatabaseUrl: url,
+		explicitUrl: Boolean(process.env.TEST_DATABASE_URL),
+		githubActions: process.env.GITHUB_ACTIONS
+	});
+	if (!guard.allowed) throw new Error(`Refusing to use test database: ${guard.reason}`);
+	return url!;
+}
 
 /**
  * Isolation strategy: **truncate every table in `public` before each test**, discovered from
@@ -18,10 +34,15 @@ export { db };
  * so a shared database is safe.
  */
 export async function truncateAll(): Promise<void> {
-	const tables = await db.execute<{ tablename: string }>(
-		sql`SELECT tablename FROM pg_tables WHERE schemaname = 'public'`
-	);
-	if (tables.length === 0) return;
-	const names = tables.map((t) => `"public"."${t.tablename}"`).join(', ');
+	// Migrations have run before any test, so the table set is fixed for the run: query it once.
+	tableList ??= db
+		.execute<{ tablename: string }>(
+			sql`SELECT tablename FROM pg_tables WHERE schemaname = 'public'`
+		)
+		.then((rows) => rows.map((t) => `"public"."${t.tablename}"`).join(', '));
+	const names = await tableList;
+	if (!names) return;
 	await db.execute(sql.raw(`TRUNCATE ${names} RESTART IDENTITY CASCADE`));
 }
+
+let tableList: Promise<string> | undefined;

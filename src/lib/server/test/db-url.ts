@@ -34,13 +34,17 @@ export type TestDbGuardResult =
 
 /**
  * The lane drops and recreates its database, so refuse anything that could be a shared one:
- * a non-`ustay_test` name (never `local`), and a non-local host unless running in CI.
+ * a non-`ustay_test` name (never `local`), and a non-local host unless on GitHub Actions with an
+ * explicit `TEST_DATABASE_URL`.
  */
 export function checkTestDbGuard(opts: {
 	testDatabaseUrl: string | undefined;
-	ci: string | undefined;
+	/** True only when `TEST_DATABASE_URL` was set explicitly (not derived from `DATABASE_URL`). */
+	explicitUrl: boolean;
+	/** `process.env.GITHUB_ACTIONS`. Plain `CI=true` is not enough: dev shells and agents set it. */
+	githubActions: string | undefined;
 }): TestDbGuardResult {
-	const { testDatabaseUrl, ci } = opts;
+	const { testDatabaseUrl, explicitUrl, githubActions } = opts;
 	if (!testDatabaseUrl) {
 		return {
 			allowed: false,
@@ -60,10 +64,15 @@ export function checkTestDbGuard(opts: {
 			reason: `Database name is "${dbName}"; the lane only runs against "${TEST_DB_NAME}".`
 		};
 	}
-	if (ci !== 'true' && !LOCAL_HOSTNAMES.has(url.hostname)) {
+	// `new URL()` brackets IPv6 hosts (`[::1]`); the allowlist stores them bare.
+	const hostname = url.hostname.replace(/^\[|\]$/g, '');
+	const remoteOk = githubActions === 'true' && explicitUrl;
+	if (!remoteOk && !LOCAL_HOSTNAMES.has(hostname)) {
 		return {
 			allowed: false,
-			reason: `Host "${url.hostname}" is not local and CI is not "true".`
+			reason:
+				`Host "${hostname}" is not local. A remote host is allowed only on GitHub Actions ` +
+				'with TEST_DATABASE_URL set explicitly.'
 		};
 	}
 	return { allowed: true };

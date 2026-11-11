@@ -3,10 +3,11 @@ import { createSeedAuth, createSeedDb } from './client';
 import { DEV_USER_EMAIL, DEV_USER_PASSWORD } from './dev-user';
 import { seedModules } from './index';
 import { user } from '../schema';
+import { testDatabaseUrl } from '$lib/server/test/db';
 
 // The seed modules run exactly as `bun run db:seed` runs them (same client, same auth instance),
-// only against `ustay_test` — `DATABASE_URL` is repointed by the `db` project's config.
-const seed = createSeedDb(process.env.DATABASE_URL!);
+// only against the guarded `ustay_test` URL.
+const seed = createSeedDb(testDatabaseUrl());
 const auth = createSeedAuth(seed.db);
 afterAll(() => seed.close());
 
