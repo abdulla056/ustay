@@ -67,3 +67,9 @@ jobs:
         run: bun run test
         env:
           STORYBOOK_DISABLE_TELEMETRY: 1
+
+      # Catches build-only failures that check/lint/test miss (e.g. UST-76: an empty
+      # BETTER_AUTH_SECRET broke `vite build` while every other gate was green).
+      # `.env.example` carries dev-only placeholders, which is all a build needs.
+      - name: Build
+        run: cp .env.example .env && bun run build
