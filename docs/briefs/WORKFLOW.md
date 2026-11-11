@@ -64,7 +64,7 @@ Linear: <url>
 - `UST-55.md` — Sign-in / sign-up forms + `Field` primitive (**DONE + merged**, PR #20 → form actions via better-auth, `(auth)/validate.ts`)
 - `UST-13.md` — Amenities catalogue + property/room joins + seed (in progress, Haiku)
 - `UST-41.md` — DB integration-test lane (**DONE + merged**, PR #22 → `bun run test:db` on `ustay_test`, CI `db integration` job; sign-in "bug" was curl's Accept header, not the app)
-- `UST-61.md` — Footer component in `(platform)` layout (in progress, Opus)
+- `UST-61.md` — Footer component in `(platform)` layout (**DONE + merged**, PR #24)
 - `UST-60.md` — Nav full mobile menu (in progress, Opus)
 - `UST-14.md` — Media model: per-property library + hero/gallery/room placements (queued, Opus)
 - `UST-53.md` — Line-splitting for display type via GSAP SplitText (in progress, Opus)
