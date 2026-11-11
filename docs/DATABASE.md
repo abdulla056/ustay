@@ -166,9 +166,12 @@ data drops into.
   has no `$env` dependency, so both the real and seed clients read the exact same table shapes.
 - `index.ts` — the runner. `seedModules: SeedModule[]` is the growth point: **Phase 1 adds one
   file per aggregate here**, each exporting a `SeedModule` (`{ name, run }`) and pushed onto the
-  array in the order it must run (a booking after the property it books, etc). A module's `run`
-  checks existence, then creates through the appropriate API — better-auth for the dev user,
-  a repository's `insert…` for a domain table — never hand-written SQL.
+  array in the order it must run (a booking after the property it books, etc). Seed modules can't
+  import repositories: they pull `$env` through `$lib/server/db`, which doesn't exist under plain
+  `bun`. A module's `run` writes through `ctx.db` with the Drizzle query builder, and creates
+  through better-auth for auth rows (the dev user). It is either check-then-create or an insert
+  with `onConflictDoNothing` on a unique key, so a second run changes nothing and staff edits
+  survive. Never raw SQL strings.
 - `dev-user.ts` — seed module #1, and the template every later module copies. Creates
   `owner@ustay.test` / `ustay-dev-password` through better-auth's `signUpEmail` (never by
   hand-inserting into `user` / `account` — that's the only way the stored hash matches what

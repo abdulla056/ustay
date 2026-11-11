@@ -5,7 +5,6 @@
  * Runs under plain `bun`, so it must not import repositories (they pull `$env` via
  * `$lib/server/db`). It writes through the Drizzle query builder on `ctx.db`.
  */
-import { sql } from 'drizzle-orm';
 import { amenity, amenityCategory } from '../amenity.schema';
 import type { SeedDb } from './client';
 import type { SeedModuleResult } from './dev-user';
@@ -74,22 +73,22 @@ export const STANDARD_AMENITIES: AmenitySeed[] = (
 	}))
 );
 
+/**
+ * Insert the catalogue rows that are missing, matched on `key`. Existing rows are left alone, so
+ * a second run changes nothing and staff edits to the catalogue survive a re-seed.
+ */
 export async function seedAmenities(db: SeedDb): Promise<SeedModuleResult> {
-	await db
+	const inserted = await db
 		.insert(amenity)
 		.values(STANDARD_AMENITIES)
-		.onConflictDoUpdate({
-			target: amenity.key,
-			set: {
-				name: sql`excluded.name`,
-				category: sql`excluded.category`,
-				icon: sql`excluded.icon`,
-				sortOrder: sql`excluded.sort_order`
-			}
-		});
+		.onConflictDoNothing({ target: amenity.key })
+		.returning({ id: amenity.id });
 
 	return {
-		created: true,
-		detail: `${STANDARD_AMENITIES.length} amenities upserted`
+		created: inserted.length > 0,
+		detail:
+			inserted.length > 0
+				? `${inserted.length} amenities inserted`
+				: `all ${STANDARD_AMENITIES.length} amenities present`
 	};
 }

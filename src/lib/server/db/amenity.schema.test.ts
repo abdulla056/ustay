@@ -130,10 +130,13 @@ describe('room_amenity table shape', () => {
 });
 
 describe('STANDARD_AMENITIES', () => {
-	it('has 24 items with unique keys', () => {
+	it('is the 24-item standard set', () => {
 		expect(STANDARD_AMENITIES).toHaveLength(24);
+	});
+
+	it('has unique keys', () => {
 		const keys = STANDARD_AMENITIES.map((a) => a.key);
-		expect(new Set(keys).size).toBe(24);
+		expect(new Set(keys).size).toBe(keys.length);
 	});
 
 	it('uses keys that match the key regex and icon equal to key', () => {
