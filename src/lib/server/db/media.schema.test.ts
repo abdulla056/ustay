@@ -80,8 +80,8 @@ describe('media_asset table shape', () => {
 
 	it('cascades from the property and sets a deleted poster to null', () => {
 		expect(foreignKeys(mediaAsset)).toEqual([
-			'poster_asset_id -> media_asset(id) set null',
-			'property_id -> property(id) cascade'
+			'property_id -> property(id) cascade',
+			'property_id,poster_asset_id -> media_asset(property_id,id) set null'
 		]);
 	});
 

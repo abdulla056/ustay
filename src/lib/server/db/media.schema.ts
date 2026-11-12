@@ -10,8 +10,10 @@
  * repository checks this (`media.repo.ts`), and the database enforces it too with composite
  * foreign keys: `media_asset` and `room` each expose a `(property_id, id)` unique key, and the
  * placement tables reference those pairs, so a mismatched property cannot be written by any path.
- * The poster of a video is the one exception: a composite FK cannot `SET NULL` just one of its
- * columns from Drizzle, so poster same-property is enforced in the repository only.
+ * A video's poster uses the same pattern: `(property_id, poster_asset_id)` references
+ * `media_asset(property_id, id)` with `ON DELETE SET NULL (poster_asset_id)` (hand-edited in the
+ * migration; Drizzle cannot express the column list, and the snapshot records plain `set null`).
+ * "The poster is an image" has no database constraint (it spans two rows) and lives in the repo.
  *
  * Conventions: `docs/DATABASE.md`. Relations live in `./relations`.
  */
@@ -69,10 +71,13 @@ export const mediaAsset = pgTable(
 	(t) => [
 		// The target of the placement tables' composite foreign keys.
 		unique('media_asset_property_id_id_unique').on(t.propertyId, t.id),
+		// Composite so a poster must be in the same library. The migration hand-edits the action to
+		// `ON DELETE SET NULL (poster_asset_id)` (Postgres 15+), so deleting a poster clears only the
+		// poster column and never nulls `property_id`. Drizzle cannot express the column list.
 		foreignKey({
-			name: 'media_asset_poster_asset_id_fk',
-			columns: [t.posterAssetId],
-			foreignColumns: [t.id]
+			name: 'media_asset_poster_fk',
+			columns: [t.propertyId, t.posterAssetId],
+			foreignColumns: [t.propertyId, t.id]
 		}).onDelete('set null'),
 		check('media_asset_url_check', sql`${t.url} ~ '^https?://'`),
 		check('media_asset_width_check', sql`${t.width} > 0`),

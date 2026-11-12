@@ -53,7 +53,7 @@ CREATE TABLE "room_media" (
 --> statement-breakpoint
 ALTER TABLE "room" ADD CONSTRAINT "room_id_property_id_unique" UNIQUE("id","property_id");--> statement-breakpoint
 ALTER TABLE "media_asset" ADD CONSTRAINT "media_asset_property_id_property_id_fk" FOREIGN KEY ("property_id") REFERENCES "public"."property"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "media_asset" ADD CONSTRAINT "media_asset_poster_asset_id_fk" FOREIGN KEY ("poster_asset_id") REFERENCES "public"."media_asset"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "media_asset" ADD CONSTRAINT "media_asset_poster_fk" FOREIGN KEY ("property_id","poster_asset_id") REFERENCES "public"."media_asset"("property_id","id") ON DELETE set null ("poster_asset_id") ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "property_media" ADD CONSTRAINT "property_media_property_id_property_id_fk" FOREIGN KEY ("property_id") REFERENCES "public"."property"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "property_media" ADD CONSTRAINT "property_media_media_asset_fk" FOREIGN KEY ("property_id","media_asset_id") REFERENCES "public"."media_asset"("property_id","id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "room_media" ADD CONSTRAINT "room_media_room_fk" FOREIGN KEY ("room_id","property_id") REFERENCES "public"."room"("id","property_id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint

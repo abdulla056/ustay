@@ -12,8 +12,10 @@ import {
 	listPropertyMedia,
 	listRoomMedia,
 	MediaNotInLibraryError,
+	MediaPosterError,
 	setPropertyGallery,
 	setPropertyHero,
+	setPropertyThumbnail,
 	setRoomMedia,
 	updateMediaAsset,
 	type NewMediaAssetInput
@@ -353,5 +355,116 @@ describe('cascades', () => {
 		expect((await db.select().from(mediaAsset)).map((m) => m.id)).toEqual([kept.id]);
 		expect(await db.select().from(roomMedia)).toHaveLength(0);
 		expect((await db.select().from(propertyMedia)).map((m) => m.mediaAssetId)).toEqual([kept.id]);
+	});
+});
+
+describe('review fixes (UST-14)', () => {
+	const video = { kind: 'video', url: 'https://video.example.com/a.mp4' } as const;
+	const missing = '00000000-0000-4000-8000-000000000000';
+
+	it('refuses to turn a poster image into a video, but allows it once unreferenced', async () => {
+		const p = await makeProperty('Poster kind');
+		const poster = await makeImage(p.id);
+		const clip = await makeImage(p.id, { ...video, posterAssetId: poster.id });
+		await expect(updateMediaAsset(poster.id, { kind: 'video' })).rejects.toThrow(MediaPosterError);
+		expect((await findMediaAssetById(poster.id))?.kind).toBe('image');
+		await updateMediaAsset(clip.id, { posterAssetId: null });
+		expect((await updateMediaAsset(poster.id, { kind: 'video' }))?.kind).toBe('video');
+	});
+
+	it('treats an all-undefined or empty patch as a no-op returning the row', async () => {
+		const p = await makeProperty('Empty patch');
+		const a = await makeImage(p.id);
+		expect(await updateMediaAsset(a.id, { caption: undefined })).toMatchObject({ id: a.id });
+		expect(await updateMediaAsset(a.id, {})).toMatchObject({ id: a.id });
+		expect(await updateMediaAsset(missing, { caption: undefined })).toBeUndefined();
+	});
+
+	it('reports a malformed uuid as not-in-library instead of a Postgres error', async () => {
+		const p = await makeProperty('Bad uuid');
+		await expect(setPropertyGallery(p.id, ['not-a-uuid'])).rejects.toThrow(MediaNotInLibraryError);
+		await expect(setPropertyHero(p.id, 'nope')).rejects.toThrow(MediaNotInLibraryError);
+		await expect(makeImage(p.id, { ...video, posterAssetId: 'x' })).rejects.toThrow(
+			MediaNotInLibraryError
+		);
+		const r = await insertRoom({ propertyId: p.id, name: 'Suite', ...roomBase });
+		await expect(setRoomMedia(r.id, ['zzz'])).rejects.toThrow(MediaNotInLibraryError);
+		expect(await findMediaAssetById('zzz')).toBeUndefined();
+		expect(await updateMediaAsset('zzz', { caption: 'x' })).toBeUndefined();
+		expect(await deleteMediaAsset('zzz')).toBeUndefined();
+	});
+
+	it('serialises concurrent gallery and room-media replacements', async () => {
+		const p = await makeProperty('Concurrent');
+		const assets = await Promise.all([1, 2, 3, 4].map(() => makeImage(p.id)));
+		const ids = assets.map((a) => a.id);
+		const lists = [ids, [...ids].reverse(), ids.slice(1), ids.slice(0, 2)];
+		await Promise.all(lists.map((l) => setPropertyGallery(p.id, l)));
+		const final = (await listPropertyMedia(p.id, 'gallery')).map((m) => m.id);
+		expect(lists).toContainEqual(final);
+
+		const r = await insertRoom({ propertyId: p.id, name: 'Suite', ...roomBase });
+		await Promise.all(lists.map((l) => setRoomMedia(r.id, l)));
+		expect(lists).toContainEqual((await listRoomMedia(r.id)).map((m) => m.id));
+	});
+
+	it('checks the poster inside the transaction: a failed update changes nothing', async () => {
+		const p = await makeProperty('Atomic poster');
+		const other = await makeProperty('Other');
+		const foreign = await makeImage(other.id);
+		const clip = await makeImage(p.id, video);
+		await expect(
+			updateMediaAsset(clip.id, { caption: 'new', posterAssetId: foreign.id })
+		).rejects.toThrow(MediaNotInLibraryError);
+		expect((await findMediaAssetById(clip.id))?.caption).toBeNull();
+	});
+
+	it('enforces same-property posters in the database; deleting a poster only nulls that column', async () => {
+		const p = await makeProperty('Composite poster');
+		const other = await makeProperty('Elsewhere');
+		const foreign = await makeImage(other.id);
+		const clip = await makeImage(p.id, video);
+		const bad = db
+			.update(mediaAsset)
+			.set({ posterAssetId: foreign.id })
+			.where(eq(mediaAsset.id, clip.id));
+		expect(await pgCode(bad)).toBe(FK_VIOLATION);
+
+		const poster = await makeImage(p.id);
+		const withPoster = await makeImage(p.id, { ...video, posterAssetId: poster.id });
+		await deleteMediaAsset(poster.id);
+		const after = await findMediaAssetById(withPoster.id);
+		expect(after?.posterAssetId).toBeNull();
+		expect(after?.propertyId).toBe(p.id);
+	});
+
+	it('ignores propertyId in a patch at runtime', async () => {
+		const p = await makeProperty('Immutable');
+		const other = await makeProperty('Elsewhere');
+		const a = await makeImage(p.id);
+		const patch = { propertyId: other.id, caption: 'kept' } as never;
+		expect(await updateMediaAsset(a.id, patch)).toMatchObject({
+			propertyId: p.id,
+			caption: 'kept'
+		});
+		const onlyProperty = { propertyId: other.id } as never;
+		expect((await updateMediaAsset(a.id, onlyProperty))?.propertyId).toBe(p.id);
+	});
+
+	it('sets, replaces and clears the thumbnail, with the library check', async () => {
+		const p = await makeProperty('Thumb');
+		const other = await makeProperty('Elsewhere');
+		const [a, b, foreign] = [
+			await makeImage(p.id),
+			await makeImage(p.id),
+			await makeImage(other.id)
+		];
+		await setPropertyThumbnail(p.id, a.id);
+		await setPropertyThumbnail(p.id, b.id);
+		expect((await listPropertyMedia(p.id, 'thumbnail')).map((m) => m.id)).toEqual([b.id]);
+		await expect(setPropertyThumbnail(p.id, foreign.id)).rejects.toThrow(MediaNotInLibraryError);
+		expect((await listPropertyMedia(p.id, 'thumbnail')).map((m) => m.id)).toEqual([b.id]);
+		await setPropertyThumbnail(p.id, null);
+		expect(await listPropertyMedia(p.id, 'thumbnail')).toHaveLength(0);
 	});
 });

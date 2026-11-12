@@ -809,14 +809,16 @@
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
-        "media_asset_poster_asset_id_fk": {
-          "name": "media_asset_poster_asset_id_fk",
+        "media_asset_poster_fk": {
+          "name": "media_asset_poster_fk",
           "tableFrom": "media_asset",
           "tableTo": "media_asset",
           "columnsFrom": [
+            "property_id",
             "poster_asset_id"
           ],
           "columnsTo": [
+            "property_id",
             "id"
           ],
           "onDelete": "set null",

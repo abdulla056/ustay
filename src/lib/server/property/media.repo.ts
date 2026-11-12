@@ -4,12 +4,20 @@
  * repository layer") and `docs/DATABASE.md`. The executor is the last param.
  *
  * Same-property rule: every placement (and a video's poster) must use an asset from the owning
- * property's library. The setters check it up front and throw {@link MediaNotInLibraryError}; the
- * composite foreign keys in `media.schema.ts` enforce the placement half again in the database.
+ * property's library. The setters check it up front (inside their transaction, with the parent
+ * row locked) and throw {@link MediaNotInLibraryError}; the composite foreign keys in
+ * `media.schema.ts` enforce both halves again in the database.
  */
 import { and, asc, eq, inArray } from 'drizzle-orm';
 import { db, type Executor } from '$lib/server/db';
-import { mediaAsset, mediaRole, propertyMedia, room, roomMedia } from '$lib/server/db/schema';
+import {
+	mediaAsset,
+	mediaRole,
+	property,
+	propertyMedia,
+	room,
+	roomMedia
+} from '$lib/server/db/schema';
 
 export type MediaAsset = typeof mediaAsset.$inferSelect;
 export type MediaRole = (typeof mediaRole.enumValues)[number];
@@ -23,6 +31,9 @@ export type NewMediaAssetInput = Omit<
 /** Patch for {@link updateMediaAsset}. An asset never moves to another property's library. */
 export type MediaAssetPatch = Partial<Omit<NewMediaAssetInput, 'propertyId'>>;
 
+/** Fields a patch may never touch, stripped at runtime (types alone do not stop a cast). */
+const IMMUTABLE_FIELDS = ['propertyId', 'id', 'createdAt'];
+
 /** Thrown when an asset id is not in the given property's library (or does not exist). */
 export class MediaNotInLibraryError extends Error {
 	constructor(
@@ -33,6 +44,21 @@ export class MediaNotInLibraryError extends Error {
 		this.name = 'MediaNotInLibraryError';
 	}
 }
+
+/** Thrown when a poster is not an image, or an asset that is someone's poster stops being one. */
+export class MediaPosterError extends Error {
+	constructor(
+		readonly assetId: string,
+		message: string
+	) {
+		super(message);
+		this.name = 'MediaPosterError';
+	}
+}
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+/** Postgres rejects a malformed uuid with a 500-grade error; check the shape before querying. */
+const isUuid = (value: unknown): value is string => typeof value === 'string' && UUID.test(value);
 
 /** Every asset column, listed so a new column is a deliberate addition to placement payloads. */
 const assetColumns = {
@@ -57,24 +83,37 @@ const assetColumns = {
 /** Throw unless every id in `assetIds` is an asset in `propertyId`'s library. */
 async function assertInLibrary(propertyId: string, assetIds: string[], tx: Executor) {
 	if (assetIds.length === 0) return;
-	const found = await tx
-		.select({ id: mediaAsset.id })
-		.from(mediaAsset)
-		.where(and(eq(mediaAsset.propertyId, propertyId), inArray(mediaAsset.id, assetIds)));
+	const valid = assetIds.filter(isUuid);
+	const found =
+		isUuid(propertyId) && valid.length > 0
+			? await tx
+					.select({ id: mediaAsset.id })
+					.from(mediaAsset)
+					.where(and(eq(mediaAsset.propertyId, propertyId), inArray(mediaAsset.id, valid)))
+			: [];
 	const ok = new Set(found.map((row) => row.id));
 	const missing = assetIds.filter((id) => !ok.has(id));
 	if (missing.length > 0) throw new MediaNotInLibraryError(propertyId, missing);
 }
 
-/** A poster must be an image from the same library. */
+/**
+ * A poster must be an image from the same library. Call inside a transaction: the poster row is
+ * locked so it cannot change kind between this check and the write.
+ */
 async function assertPoster(propertyId: string, posterAssetId: string, tx: Executor) {
+	if (!isUuid(posterAssetId) || !isUuid(propertyId)) {
+		throw new MediaNotInLibraryError(propertyId, [posterAssetId]);
+	}
 	const [poster] = await tx
 		.select({ kind: mediaAsset.kind })
 		.from(mediaAsset)
 		.where(and(eq(mediaAsset.id, posterAssetId), eq(mediaAsset.propertyId, propertyId)))
-		.limit(1);
+		.limit(1)
+		.for('update');
 	if (!poster) throw new MediaNotInLibraryError(propertyId, [posterAssetId]);
-	if (poster.kind !== 'image') throw new Error(`Poster ${posterAssetId} must be an image asset`);
+	if (poster.kind !== 'image') {
+		throw new MediaPosterError(posterAssetId, `Poster ${posterAssetId} must be an image asset`);
+	}
 }
 
 /** First occurrence wins, so the order a caller sends is the order stored. */
@@ -92,30 +131,66 @@ export async function listMediaAssets(propertyId: string, tx: Executor = db) {
 }
 
 export async function findMediaAssetById(id: string, tx: Executor = db) {
+	if (!isUuid(id)) return undefined;
 	const [row] = await tx.select().from(mediaAsset).where(eq(mediaAsset.id, id)).limit(1);
 	return row;
 }
 
 export async function insertMediaAsset(input: NewMediaAssetInput, tx: Executor = db) {
-	if (input.posterAssetId) await assertPoster(input.propertyId, input.posterAssetId, tx);
-	const [row] = await tx.insert(mediaAsset).values(input).returning();
-	return row;
+	return tx.transaction(async (inner) => {
+		if (input.posterAssetId) await assertPoster(input.propertyId, input.posterAssetId, inner);
+		const [row] = await inner.insert(mediaAsset).values(input).returning();
+		return row;
+	});
 }
 
-/** `undefined` if the asset does not exist. */
+/**
+ * `undefined` if the asset does not exist. `undefined` fields and `propertyId` are ignored; a patch
+ * with nothing left returns the current row. Changing `kind` away from `image` is rejected with
+ * {@link MediaPosterError} while the asset is another asset's poster.
+ */
 export async function updateMediaAsset(id: string, patch: MediaAssetPatch, tx: Executor = db) {
-	if (Object.keys(patch).length === 0) return findMediaAssetById(id, tx);
-	if (patch.posterAssetId) {
-		const current = await findMediaAssetById(id, tx);
+	if (!isUuid(id)) return undefined;
+	const clean = Object.fromEntries(
+		Object.entries(patch).filter(
+			([key, value]) => value !== undefined && !IMMUTABLE_FIELDS.includes(key)
+		)
+	) as MediaAssetPatch;
+	if (Object.keys(clean).length === 0) return findMediaAssetById(id, tx);
+	return tx.transaction(async (inner) => {
+		const [current] = await inner
+			.select()
+			.from(mediaAsset)
+			.where(eq(mediaAsset.id, id))
+			.limit(1)
+			.for('update');
 		if (!current) return undefined;
-		await assertPoster(current.propertyId, patch.posterAssetId, tx);
-	}
-	const [row] = await tx.update(mediaAsset).set(patch).where(eq(mediaAsset.id, id)).returning();
-	return row;
+		if (clean.posterAssetId) await assertPoster(current.propertyId, clean.posterAssetId, inner);
+		if (clean.kind !== undefined && clean.kind !== 'image') {
+			const [user] = await inner
+				.select({ id: mediaAsset.id })
+				.from(mediaAsset)
+				.where(eq(mediaAsset.posterAssetId, id))
+				.limit(1);
+			if (user) {
+				throw new MediaPosterError(
+					id,
+					`Asset ${id} is the poster of ${user.id} and must stay an image`
+				);
+			}
+		}
+		const [row] = await inner
+			.update(mediaAsset)
+			.set(clean)
+			.where(eq(mediaAsset.id, id))
+			.returning();
+		return row;
+	});
 }
 
 /** Deleting an asset removes its placements (cascade) and clears it as a poster (set null). */
 export async function deleteMediaAsset(id: string, tx: Executor = db) {
+	if (!isUuid(id)) return undefined;
 	const [row] = await tx.delete(mediaAsset).where(eq(mediaAsset.id, id)).returning();
 	return row;
 }
@@ -143,6 +218,14 @@ export async function listPropertyMedia(propertyId: string, role?: MediaRole, tx
 async function replaceRole(propertyId: string, role: MediaRole, assetIds: string[], tx: Executor) {
 	const ids = dedupe(assetIds);
 	return tx.transaction(async (inner) => {
+		// Serialise concurrent replacements on the property; the library check then sees stable rows.
+		if (isUuid(propertyId)) {
+			await inner
+				.select({ id: property.id })
+				.from(property)
+				.where(eq(property.id, propertyId))
+				.for('update');
+		}
 		await assertInLibrary(propertyId, ids, inner);
 		await inner
 			.delete(propertyMedia)
@@ -178,6 +261,15 @@ export async function setPropertyHero(
 	return replaceRole(propertyId, 'hero', assetId ? [assetId] : [], tx);
 }
 
+/** Set the property's thumbnail, or clear it with `null`. Same library check as the hero. */
+export async function setPropertyThumbnail(
+	propertyId: string,
+	assetId: string | null,
+	tx: Executor = db
+) {
+	return replaceRole(propertyId, 'thumbnail', assetId ? [assetId] : [], tx);
+}
+
 // --- Room placements -------------------------------------------------------------------------
 
 /** The room's media, in order. */
@@ -197,11 +289,15 @@ export async function listRoomMedia(roomId: string, tx: Executor = db) {
 export async function setRoomMedia(roomId: string, assetIds: string[], tx: Executor = db) {
 	const ids = dedupe(assetIds);
 	return tx.transaction(async (inner) => {
-		const [owner] = await inner
-			.select({ propertyId: room.propertyId })
-			.from(room)
-			.where(eq(room.id, roomId))
-			.limit(1);
+		// Locking the room serialises concurrent replacements of its media.
+		const [owner] = isUuid(roomId)
+			? await inner
+					.select({ propertyId: room.propertyId })
+					.from(room)
+					.where(eq(room.id, roomId))
+					.limit(1)
+					.for('update')
+			: [];
 		if (!owner) throw new Error(`Room ${roomId} not found`);
 		await assertInLibrary(owner.propertyId, ids, inner);
 		await inner.delete(roomMedia).where(eq(roomMedia.roomId, roomId));
