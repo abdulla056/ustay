@@ -3,21 +3,21 @@
  * font) and `microsite_section` (which sections, in which order, with which variant).
  *
  * The templates, accents, fonts and variants themselves live in code, in
- * `$lib/microsite/registry.ts`; keys are `text` here and validated in the repository, so adding or
+ * `$lib/features/microsite/registry.ts`; keys are `text` here and validated in the repository, so adding or
  * retiring a preset never needs a migration. Section `type` is a closed enum tied to the Phase 2
  * section issues. No free-form settings: content comes from the domain tables.
  *
  * Conventions: `docs/DATABASE.md`. Relations live in `./relations`.
  */
 import { sql } from 'drizzle-orm';
-import { boolean, check, index, integer, pgEnum, pgTable, text, unique } from 'drizzle-orm/pg-core';
+import { boolean, check, integer, pgEnum, pgTable, text, unique } from 'drizzle-orm/pg-core';
 import {
 	DEFAULT_ACCENT_KEY,
 	DEFAULT_FONT_KEY,
 	DEFAULT_TEMPLATE_KEY,
 	DEFAULT_VARIANT,
 	SECTION_TYPES
-} from '../../microsite/registry';
+} from '../../features/microsite/registry';
 import { id, timestamps, uuidRef } from './helpers';
 import { property } from './property.schema';
 
@@ -48,7 +48,6 @@ export const micrositeSection = pgTable(
 	},
 	(t) => [
 		unique('microsite_section_property_id_type_unique').on(t.propertyId, t.type),
-		check('microsite_section_sort_order_check', sql`${t.sortOrder} >= 0`),
-		index('microsite_section_property_id_sort_order_idx').on(t.propertyId, t.sortOrder)
+		check('microsite_section_sort_order_check', sql`${t.sortOrder} >= 0`)
 	]
 );

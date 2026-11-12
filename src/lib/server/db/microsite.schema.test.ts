@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { getTableColumns, getTableName } from 'drizzle-orm';
 import { getTableConfig, PgDialect } from 'drizzle-orm/pg-core';
-import { SECTION_TYPES } from '../../microsite/registry';
+import { SECTION_TYPES } from '../../features/microsite/registry';
 import { micrositeConfig, micrositeSection, micrositeSectionType } from './microsite.schema';
 
 const names = (cols: { name: string }[]) => cols.map((c) => c.name);
@@ -56,15 +56,13 @@ describe('microsite_section table shape', () => {
 		}
 	});
 
-	it('is unique per (property, type), indexed by order, and cascades with the property', () => {
+	it('is unique per (property, type), needs no further index, and cascades with the property', () => {
 		const unique = config.uniqueConstraints.find(
 			(u) => u.name === 'microsite_section_property_id_type_unique'
 		);
 		expect(names(unique!.columns)).toEqual(['property_id', 'type']);
-		const index = config.indexes.find(
-			(i) => i.config.name === 'microsite_section_property_id_sort_order_idx'
-		);
-		expect(index).toBeDefined();
+		// The unique constraint's index already serves the per-property lookup; no extra index.
+		expect(config.indexes).toHaveLength(0);
 		expect(config.foreignKeys.find((f) => f.onDelete === 'cascade')).toBeDefined();
 	});
 

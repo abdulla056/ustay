@@ -194,7 +194,7 @@ Rules:
 
 ## Microsite config and sections (UST-17)
 
-- **Two sources of truth.** The curated presets live in **code**, in `src/lib/microsite/registry.ts`
+- **Two sources of truth.** The curated presets live in **code**, in `src/lib/features/microsite/registry.ts`
   (pure data, no server imports, shared by the repo and the Phase 2 renderer): templates (key,
   name, ordered default `{ type, variant }` sections), accent presets (`light` on paper, `dark` on
   ink), font pairings, and the allowed variants per section type. They map to components and
@@ -209,10 +209,15 @@ Rules:
   gallery, rooms, amenities, host_story, location, booking_cta; a test keeps it equal to the
   registry), `variant` (text, validated against the registry for that type, default `'default'`),
   `enabled`, `sort_order`. `UNIQUE (property_id, type)`: each section at most once per property.
-  Index on `(property_id, sort_order)`. No per-section settings or JSON: content comes from the
+  No separate order index: the unique constraint's index serves the per-property lookup and a
+  property has at most eight sections. No per-section settings or JSON: content comes from the
   domain tables.
+- **The template changes only through `applyTemplate`**, which sets the key and replaces the
+  sections (upserting, so a type the template keeps keeps its row id). `setMicrositeTheme` sets
+  accent and font only and rejects `templateKey`, so the key and the sections never disagree.
 - **No rows is a valid state.** `getRenderableMicrosite` falls back to the resolved template's
-  default sections when a property has none. Section edits (`setSectionEnabled`,
+  default sections when a property has none. For an unknown property it returns `undefined`; the
+  theme and sections are read in one repeatable-read snapshot. Section edits (`setSectionEnabled`,
   `setSectionVariant`, `setSectionOrder`) need rows to exist, so the dashboard calls
   `applyTemplate` first; it replaces the whole list with the template's defaults.
 - **Writes lock the property row** (as in UST-15/16). `setSectionOrder` writes every position in

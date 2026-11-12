@@ -1,5 +1,5 @@
 {
-  "id": "72f98a7f-2127-441c-904e-620b9647d0ef",
+  "id": "0be602d0-c07e-422f-b596-6a57ffefcbc5",
   "prevId": "2dc5c36a-a6d5-488b-90e0-ae19f1efac64",
   "version": "7",
   "dialect": "postgresql",
@@ -1815,29 +1815,7 @@
           "default": "now()"
         }
       },
-      "indexes": {
-        "microsite_section_property_id_sort_order_idx": {
-          "name": "microsite_section_property_id_sort_order_idx",
-          "columns": [
-            {
-              "expression": "property_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "sort_order",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
+      "indexes": {},
       "foreignKeys": {
         "microsite_section_property_id_property_id_fk": {
           "name": "microsite_section_property_id_property_id_fk",

@@ -22,5 +22,4 @@ CREATE TABLE "microsite_section" (
 );
 --> statement-breakpoint
 ALTER TABLE "microsite_config" ADD CONSTRAINT "microsite_config_property_id_property_id_fk" FOREIGN KEY ("property_id") REFERENCES "public"."property"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "microsite_section" ADD CONSTRAINT "microsite_section_property_id_property_id_fk" FOREIGN KEY ("property_id") REFERENCES "public"."property"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-CREATE INDEX "microsite_section_property_id_sort_order_idx" ON "microsite_section" USING btree ("property_id","sort_order");
+ALTER TABLE "microsite_section" ADD CONSTRAINT "microsite_section_property_id_property_id_fk" FOREIGN KEY ("property_id") REFERENCES "public"."property"("id") ON DELETE cascade ON UPDATE no action;

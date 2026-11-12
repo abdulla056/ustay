@@ -11,7 +11,7 @@ import { db, type Executor } from '$lib/server/db';
 import { isUuid } from '$lib/server/db/helpers';
 import { destination, propertyLocation } from '$lib/server/db/schema';
 import { DestinationNotFoundError } from '$lib/server/destination/destination.repo';
-import { findPropertyById, PropertyNotFoundError } from './property.repo';
+import { lockPropertyOrThrow } from './property.repo';
 import {
 	coordinatePair,
 	countryCode,
@@ -148,9 +148,7 @@ export async function upsertPropertyLocation(
 	tx: Executor = db
 ) {
 	return tx.transaction(async (inner) => {
-		if (!(await findPropertyById(propertyId, inner, { lock: true }))) {
-			throw new PropertyNotFoundError(propertyId);
-		}
+		await lockPropertyOrThrow(propertyId, inner);
 		const existing = await getPropertyLocation(propertyId, inner);
 		const clean = cleanInput(input, existing);
 		if (existing) {
@@ -184,9 +182,7 @@ export async function setPropertyDestination(
 	tx: Executor = db
 ) {
 	return tx.transaction(async (inner) => {
-		if (!(await findPropertyById(propertyId, inner, { lock: true }))) {
-			throw new PropertyNotFoundError(propertyId);
-		}
+		await lockPropertyOrThrow(propertyId, inner);
 		if (destinationId !== null) {
 			const [found] = isUuid(destinationId)
 				? await inner

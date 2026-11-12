@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { db } from '$lib/server/test/db';
 import { micrositeConfig, micrositeSection, property } from '$lib/server/db/schema';
-import { findTemplate } from '$lib/microsite/registry';
+import { findTemplate } from '$lib/features/microsite/registry';
 import { insertProperty, PropertyNotFoundError } from '$lib/server/property/property.repo';
 import {
 	applyTemplate,
@@ -47,9 +47,9 @@ describe('config and theme', () => {
 	it('sets a theme patch, keeping the keys not mentioned', async () => {
 		const p = await makeProperty('Themed');
 		await setMicrositeTheme(p.id, { accentKey: 'clay' });
-		const second = await setMicrositeTheme(p.id, { templateKey: 'intimate' });
+		const second = await setMicrositeTheme(p.id, { fontKey: 'editorial' });
 		expect(second.accent.key).toBe('clay');
-		expect(second.template.key).toBe('intimate');
+		expect(second.template.key).toBe('editorial');
 		expect(second.font.key).toBe('editorial');
 		const rows = await db.select().from(micrositeConfig);
 		expect(rows).toHaveLength(1);
@@ -69,10 +69,20 @@ describe('config and theme', () => {
 
 	it('rejects keys the registry does not know, writing nothing', async () => {
 		const p = await makeProperty('Bad keys');
-		for (const patch of [{ templateKey: 'nope' }, { accentKey: 'nope' }, { fontKey: 'nope' }]) {
+		for (const patch of [{ accentKey: 'nope' }, { fontKey: 'nope' }]) {
 			await expect(setMicrositeTheme(p.id, patch)).rejects.toBeInstanceOf(MicrositeValidationError);
 		}
 		expect(await db.select().from(micrositeConfig)).toHaveLength(0);
+	});
+
+	it('does not set the template: that goes through applyTemplate', async () => {
+		const p = await makeProperty('No template');
+		await applyTemplate(p.id, 'editorial');
+		await expect(
+			setMicrositeTheme(p.id, { templateKey: 'intimate' } as never)
+		).rejects.toBeInstanceOf(MicrositeValidationError);
+		expect((await getMicrositeConfig(p.id)).template.key).toBe('editorial');
+		expect(await listSections(p.id)).toHaveLength(8);
 	});
 
 	it('throws PropertyNotFoundError for an unknown or malformed property', async () => {
@@ -97,7 +107,7 @@ describe('config and theme', () => {
 		expect(config.accent.key).toBe('forest');
 		expect(config.font.key).toBe('editorial');
 		const microsite = await getRenderableMicrosite(p.id);
-		expect(microsite.sections.length).toBeGreaterThan(0);
+		expect(microsite!.sections.length).toBeGreaterThan(0);
 	});
 });
 
@@ -121,6 +131,19 @@ describe('applyTemplate and sections', () => {
 		expect(types(rows)).toEqual(findTemplate('intimate')!.sections.map((s) => s.type));
 		expect(rows.every((r) => r.enabled && r.variant === 'default')).toBe(true);
 		expect(await db.select().from(micrositeSection)).toHaveLength(rows.length);
+	});
+
+	it('keeps the ids of sections whose type stays, and drops the rest', async () => {
+		const p = await makeProperty('Ids');
+		const first = await applyTemplate(p.id, 'editorial');
+		const ids = Object.fromEntries(first.map((r) => [r.type, r.id]));
+		const again = await applyTemplate(p.id, 'editorial');
+		expect(again.map((r) => r.id)).toEqual(first.map((r) => r.id));
+		const intimate = await applyTemplate(p.id, 'intimate');
+		expect(intimate).toHaveLength(7);
+		for (const row of intimate) expect(row.id, row.type).toBe(ids[row.type]);
+		expect(types(intimate)).not.toContain('amenities');
+		expect(await db.select().from(micrositeSection)).toHaveLength(7);
 	});
 
 	it('rejects an unknown template and changes nothing', async () => {
@@ -159,6 +182,16 @@ describe('applyTemplate and sections', () => {
 		);
 		expect(types(await listSections(p.id))).toEqual(before);
 		await expect(setSectionOrder(ABSENT, [])).rejects.toBeInstanceOf(PropertyNotFoundError);
+	});
+
+	it('requires an array of strings for the order', async () => {
+		const p = await makeProperty('Order input');
+		await applyTemplate(p.id, 'editorial');
+		for (const bad of ['hero', null, undefined, { 0: 'hero' }, ['hero', 1]]) {
+			await expect(setSectionOrder(p.id, bad as never)).rejects.toBeInstanceOf(
+				MicrositeValidationError
+			);
+		}
 	});
 
 	it('enables and disables a section, and filters with enabledOnly', async () => {
@@ -236,11 +269,19 @@ describe('getRenderableMicrosite', () => {
 	it('falls back to the default template for a property with nothing stored', async () => {
 		const p = await makeProperty('Fallback');
 		const microsite = await getRenderableMicrosite(p.id);
-		expect(microsite.template.key).toBe('editorial');
-		expect(microsite.sections.map((s) => s.type)).toEqual(
+		expect(microsite!.template.key).toBe('editorial');
+		expect(microsite!.sections.map((s) => s.type)).toEqual(
 			findTemplate('editorial')!.sections.map((s) => s.type)
 		);
-		expect((await getRenderableMicrosite('not-a-uuid')).sections).toHaveLength(8);
+	});
+
+	it('returns undefined for a missing, deleted or malformed property', async () => {
+		expect(await getRenderableMicrosite(ABSENT)).toBeUndefined();
+		expect(await getRenderableMicrosite('not-a-uuid')).toBeUndefined();
+		const p = await makeProperty('Gone');
+		await applyTemplate(p.id, 'editorial');
+		await db.delete(property).where(eq(property.id, p.id));
+		expect(await getRenderableMicrosite(p.id)).toBeUndefined();
 	});
 
 	it('returns the theme and only enabled sections, in order, with variants', async () => {
@@ -251,10 +292,10 @@ describe('getRenderableMicrosite', () => {
 		await setSectionEnabled(p.id, 'overview', false);
 		await setSectionOrder(p.id, ['gallery']);
 		const microsite = await getRenderableMicrosite(p.id);
-		expect(microsite.accent.key).toBe('tide');
-		expect(microsite.sections[0]).toEqual({ type: 'gallery', variant: 'grid' });
-		expect(microsite.sections.map((s) => s.type)).not.toContain('overview');
-		expect(microsite.sections).toHaveLength(7);
+		expect(microsite!.accent.key).toBe('tide');
+		expect(microsite!.sections[0]).toEqual({ type: 'gallery', variant: 'grid' });
+		expect(microsite!.sections.map((s) => s.type)).not.toContain('overview');
+		expect(microsite!.sections).toHaveLength(7);
 	});
 
 	it('resolves a removed variant to default', async () => {
@@ -265,14 +306,14 @@ describe('getRenderableMicrosite', () => {
 			.set({ variant: 'retired' })
 			.where(eq(micrositeSection.propertyId, p.id));
 		const microsite = await getRenderableMicrosite(p.id);
-		expect(microsite.sections.every((s) => s.variant === 'default')).toBe(true);
+		expect(microsite!.sections.every((s) => s.variant === 'default')).toBe(true);
 	});
 
 	it('renders nothing, not the fallback, when the owner disabled every section', async () => {
 		const p = await makeProperty('All off');
 		const rows = await applyTemplate(p.id, 'intimate');
 		for (const row of rows) await setSectionEnabled(p.id, row.type, false);
-		expect((await getRenderableMicrosite(p.id)).sections).toEqual([]);
+		expect((await getRenderableMicrosite(p.id))!.sections).toEqual([]);
 	});
 });
 

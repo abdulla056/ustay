@@ -13,7 +13,7 @@ import { isUuid } from '$lib/server/db/helpers';
 import { hostProfile } from '$lib/server/db/schema';
 import { optionalText, requiredText, type ErrorFactory } from '$lib/server/validate';
 import { assertImageInLibrary, HostAvatarError } from './media.repo';
-import { findPropertyById, PropertyNotFoundError } from './property.repo';
+import { lockPropertyOrThrow } from './property.repo';
 
 export { HostAvatarError };
 
@@ -107,8 +107,7 @@ export async function upsertHostProfile(
 	tx: Executor = db
 ) {
 	return tx.transaction(async (inner) => {
-		const owner = await findPropertyById(propertyId, inner, { lock: true });
-		if (!owner) throw new PropertyNotFoundError(propertyId);
+		const owner = await lockPropertyOrThrow(propertyId, inner);
 		const clean = cleanInput(input, owner.timezone);
 		const existing = await getHostProfile(propertyId, inner);
 		if (existing) {
@@ -138,9 +137,7 @@ export async function upsertHostProfile(
  */
 export async function setHostAvatar(propertyId: string, assetId: string | null, tx: Executor = db) {
 	return tx.transaction(async (inner) => {
-		if (!(await findPropertyById(propertyId, inner, { lock: true }))) {
-			throw new PropertyNotFoundError(propertyId);
-		}
+		await lockPropertyOrThrow(propertyId, inner);
 		if (assetId !== null) {
 			await assertImageInLibrary(
 				propertyId,

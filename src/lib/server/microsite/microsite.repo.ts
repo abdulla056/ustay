@@ -3,12 +3,12 @@
  * `microsite_section`: a property's template, accent, font and its ordered section list.
  * Conventions: `docs/ARCHITECTURE.md` and `docs/DATABASE.md`. The executor is the last param.
  *
- * The presets themselves live in `$lib/microsite/registry` (code). The database stores keys only;
+ * The presets themselves live in `$lib/features/microsite/registry` (code). The database stores keys only;
  * writes validate keys against the registry, and reads resolve an unknown or removed key to the
  * default so a retired preset never breaks a live microsite. Writes lock the property row so
  * concurrent theme changes, template applies and reorders serialise.
  */
-import { asc, eq, and, sql } from 'drizzle-orm';
+import { and, asc, eq, notInArray, sql } from 'drizzle-orm';
 import { db, type Executor } from '$lib/server/db';
 import { isUuid } from '$lib/server/db/helpers';
 import { micrositeConfig, micrositeSection } from '$lib/server/db/schema';
@@ -27,15 +27,15 @@ import {
 	type FontSpec,
 	type SectionType,
 	type TemplateSpec
-} from '$lib/microsite/registry';
-import { findPropertyById, PropertyNotFoundError } from '$lib/server/property/property.repo';
+} from '$lib/features/microsite/registry';
+import { applyOrder } from '$lib/server/db/reorder';
+import { findPropertyById, lockPropertyOrThrow } from '$lib/server/property/property.repo';
 import { pick, type ErrorFactory } from '$lib/server/validate';
 
 export type MicrositeSection = typeof micrositeSection.$inferSelect;
 
-/** Patch for {@link setMicrositeTheme}. */
+/** Patch for {@link setMicrositeTheme}. The template changes only through {@link applyTemplate}. */
 export type MicrositeThemePatch = {
-	templateKey?: string;
 	accentKey?: string;
 	fontKey?: string;
 };
@@ -83,18 +83,11 @@ export class MicrositeSectionOrderError extends Error {
 }
 
 const fail: ErrorFactory = (m) => new MicrositeValidationError(m);
-const THEME_FIELDS = ['templateKey', 'accentKey', 'fontKey'] as const;
+const THEME_FIELDS = ['accentKey', 'fontKey'] as const;
 
 function requireSectionType(type: unknown): SectionType {
 	if (!isSectionType(type)) throw fail(`type must be a section type, got ${String(type)}`);
 	return type;
-}
-
-/** Lock the property, or throw {@link PropertyNotFoundError}. */
-async function lockProperty(propertyId: string, tx: Executor) {
-	if (!(await findPropertyById(propertyId, tx, { lock: true }))) {
-		throw new PropertyNotFoundError(String(propertyId));
-	}
 }
 
 function resolve(row?: { templateKey: string; accentKey: string; fontKey: string }) {
@@ -123,20 +116,21 @@ export async function getMicrositeConfig(
 }
 
 /**
- * Change the property's template, accent and/or font key (a patch; `undefined` fields and any
- * other keys are ignored). Does not touch the sections: use {@link applyTemplate} for that.
- * Throws {@link PropertyNotFoundError} or {@link MicrositeValidationError} for a key the registry
- * does not know.
+ * Change the property's accent and/or font key (a patch; `undefined` fields and unknown keys are
+ * ignored). The template is not set here, because switching it must also replace the sections:
+ * use {@link applyTemplate}. Passing `templateKey` is an error, not a silent no-op. Throws
+ * {@link PropertyNotFoundError} or {@link MicrositeValidationError} for a key the registry does
+ * not know.
  */
 export async function setMicrositeTheme(
 	propertyId: string,
 	patch: MicrositeThemePatch,
 	tx: Executor = db
 ) {
-	const clean = pick(patch, THEME_FIELDS) as MicrositeThemePatch;
-	if ('templateKey' in clean && !findTemplate(clean.templateKey)) {
-		throw fail(`Unknown template ${String(clean.templateKey)}`);
+	if ((patch as { templateKey?: unknown } | null)?.templateKey !== undefined) {
+		throw fail('templateKey cannot be set here; use applyTemplate');
 	}
+	const clean = pick(patch, THEME_FIELDS) as MicrositeThemePatch;
 	if ('accentKey' in clean && !findAccent(clean.accentKey)) {
 		throw fail(`Unknown accent ${String(clean.accentKey)}`);
 	}
@@ -144,7 +138,7 @@ export async function setMicrositeTheme(
 		throw fail(`Unknown font ${String(clean.fontKey)}`);
 	}
 	return tx.transaction(async (inner) => {
-		await lockProperty(propertyId, inner);
+		await lockPropertyOrThrow(propertyId, inner);
 		if (Object.keys(clean).length > 0) {
 			await inner
 				.insert(micrositeConfig)
@@ -179,13 +173,14 @@ export async function listSections(
 /**
  * Switch the property to a template: sets the template key and **replaces** the section list with
  * the template's defaults (all enabled, in the template's order), in one transaction with the
- * property locked. Throws {@link PropertyNotFoundError} or {@link MicrositeValidationError}.
+ * property locked. Sections of types the template keeps are updated in place (same ids, so
+ * re-applying the same template changes no ids); the others are deleted. Throws {@link PropertyNotFoundError} or {@link MicrositeValidationError}.
  */
 export async function applyTemplate(propertyId: string, templateKey: string, tx: Executor = db) {
 	const template = findTemplate(templateKey);
 	if (!template) throw fail(`Unknown template ${String(templateKey)}`);
 	return tx.transaction(async (inner) => {
-		await lockProperty(propertyId, inner);
+		await lockPropertyOrThrow(propertyId, inner);
 		await inner
 			.insert(micrositeConfig)
 			.values({ propertyId, templateKey: template.key })
@@ -193,15 +188,35 @@ export async function applyTemplate(propertyId: string, templateKey: string, tx:
 				target: micrositeConfig.propertyId,
 				set: { templateKey: template.key, updatedAt: new Date() }
 			});
-		await inner.delete(micrositeSection).where(eq(micrositeSection.propertyId, propertyId));
-		await inner.insert(micrositeSection).values(
-			template.sections.map((section, index) => ({
-				propertyId,
-				type: section.type,
-				variant: section.variant,
-				sortOrder: index
-			}))
+		// Upsert so a type that stays keeps its id; the rest are removed.
+		await inner.delete(micrositeSection).where(
+			and(
+				eq(micrositeSection.propertyId, propertyId),
+				notInArray(
+					micrositeSection.type,
+					template.sections.map((section) => section.type)
+				)
+			)
 		);
+		await inner
+			.insert(micrositeSection)
+			.values(
+				template.sections.map((section, index) => ({
+					propertyId,
+					type: section.type,
+					variant: section.variant,
+					sortOrder: index
+				}))
+			)
+			.onConflictDoUpdate({
+				target: [micrositeSection.propertyId, micrositeSection.type],
+				set: {
+					variant: sql`excluded.variant`,
+					enabled: true,
+					sortOrder: sql`excluded.sort_order`,
+					updatedAt: new Date()
+				}
+			});
 		return listSections(propertyId, {}, inner);
 	});
 }
@@ -214,26 +229,22 @@ export async function applyTemplate(propertyId: string, templateKey: string, tx:
  * property.
  */
 export async function setSectionOrder(propertyId: string, types: string[], tx: Executor = db) {
-	const ordered = [...new Set(types)];
+	if (!Array.isArray(types) || types.some((type) => typeof type !== 'string')) {
+		throw fail('types must be an array of strings');
+	}
 	return tx.transaction(async (inner) => {
-		await lockProperty(propertyId, inner);
+		await lockPropertyOrThrow(propertyId, inner);
 		const current = await listSections(propertyId, {}, inner);
-		const known = new Set<string>(current.map((s) => s.type));
-		const foreign = ordered.filter((type) => !known.has(type));
-		if (foreign.length > 0) throw new MicrositeSectionOrderError(propertyId, foreign);
-		const listed = new Set(ordered);
-		const finalOrder = [...ordered, ...current.map((s) => s.type).filter((t) => !listed.has(t))];
-		if (finalOrder.length > 0) {
-			const typeArray = sql`ARRAY[${sql.join(
-				finalOrder.map((type) => sql`${type}`),
-				sql`, `
-			)}]::microsite_section_type[]`;
-			await inner.execute(
-				sql`UPDATE microsite_section AS s SET sort_order = v.pos - 1, updated_at = now()
-					FROM unnest(${typeArray}) WITH ORDINALITY AS v(type, pos)
-					WHERE s.type = v.type AND s.property_id = ${propertyId}`
-			);
-		}
+		await applyOrder(inner, {
+			table: 'microsite_section',
+			keyColumn: 'type',
+			scopeColumn: 'property_id',
+			scopeId: propertyId,
+			keyType: 'microsite_section_type',
+			current: current.map((s) => s.type),
+			requested: types,
+			onForeign: (foreign) => new MicrositeSectionOrderError(propertyId, foreign)
+		});
 		return listSections(propertyId, {}, inner);
 	});
 }
@@ -282,7 +293,7 @@ async function updateSection(
 	tx: Executor
 ) {
 	return tx.transaction(async (inner) => {
-		await lockProperty(propertyId, inner);
+		await lockPropertyOrThrow(propertyId, inner);
 		const [row] = await inner
 			.update(micrositeSection)
 			.set(set)
@@ -294,21 +305,28 @@ async function updateSection(
 }
 
 /**
- * Exactly what the renderer needs: the resolved theme and the enabled sections in order, with
+ * `undefined` for an unknown or malformed property. Otherwise exactly what the renderer needs: the resolved theme and the enabled sections in order, with
  * each variant resolved against the registry. A property with no sections falls back to its
  * resolved template's defaults (the default template when there is no config either).
  */
 export async function getRenderableMicrosite(
 	propertyId: string,
 	tx: Executor = db
-): Promise<RenderableMicrosite> {
-	const config = await getMicrositeConfig(propertyId, tx);
-	const all = await listSections(propertyId, {}, tx);
-	const sections =
-		all.length === 0
-			? config.template.sections.map((s) => ({ type: s.type, variant: s.variant }))
-			: all
-					.filter((s) => s.enabled)
-					.map((s) => ({ type: s.type, variant: resolveVariant(s.type, s.variant) }));
-	return { ...config, sections };
+): Promise<RenderableMicrosite | undefined> {
+	// One read-only snapshot, so the theme and the sections come from the same moment.
+	return tx.transaction(
+		async (inner) => {
+			if (!(await findPropertyById(propertyId, inner))) return undefined;
+			const config = await getMicrositeConfig(propertyId, inner);
+			const all = await listSections(propertyId, {}, inner);
+			const sections =
+				all.length === 0
+					? config.template.sections.map((s) => ({ type: s.type, variant: s.variant }))
+					: all
+							.filter((s) => s.enabled)
+							.map((s) => ({ type: s.type, variant: resolveVariant(s.type, s.variant) }));
+			return { ...config, sections };
+		},
+		{ isolationLevel: 'repeatable read', accessMode: 'read only' }
+	);
 }

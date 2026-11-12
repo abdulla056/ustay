@@ -12,7 +12,8 @@ import { db, type Executor } from '$lib/server/db';
 import { isUuid } from '$lib/server/db/helpers';
 import { attraction, attractionCategory, travelMode } from '$lib/server/db/schema';
 import { assertImageInLibrary, AttractionImageError } from './media.repo';
-import { findPropertyById, PropertyNotFoundError } from './property.repo';
+import { applyOrder } from '$lib/server/db/reorder';
+import { findPropertyById, lockPropertyOrThrow } from './property.repo';
 import {
 	coordinatePair,
 	nonNegativeInt,
@@ -145,9 +146,7 @@ export async function findAttractionById(id: string, tx: Executor = db) {
 export async function insertAttraction(input: NewAttractionInput, tx: Executor = db) {
 	return tx.transaction(async (inner) => {
 		const propertyId = (input as { propertyId?: string }).propertyId as string;
-		if (!(await findPropertyById(propertyId, inner, { lock: true }))) {
-			throw new PropertyNotFoundError(String(propertyId));
-		}
+		await lockPropertyOrThrow(propertyId, inner);
 		const clean = cleanInput(input);
 		if (clean.name === undefined || clean.category === undefined) {
 			throw fail('name and category are required');
@@ -227,28 +226,19 @@ async function lockOwner(id: string, tx: Executor): Promise<boolean> {
  * {@link AttractionOrderError} (changing nothing) if an id is not an attraction of this property.
  */
 export async function setAttractionOrder(propertyId: string, ids: string[], tx: Executor = db) {
-	const ordered = [...new Set(ids)];
 	return tx.transaction(async (inner) => {
-		if (!(await findPropertyById(propertyId, inner, { lock: true }))) {
-			throw new PropertyNotFoundError(String(propertyId));
-		}
+		await lockPropertyOrThrow(propertyId, inner);
 		const current = await listAttractions(propertyId, inner);
-		const known = new Set(current.map((a) => a.id));
-		const foreign = ordered.filter((id) => !known.has(id));
-		if (foreign.length > 0) throw new AttractionOrderError(propertyId, foreign);
-		const listed = new Set(ordered);
-		const finalOrder = [...ordered, ...current.map((a) => a.id).filter((id) => !listed.has(id))];
-		if (finalOrder.length > 0) {
-			const idArray = sql`ARRAY[${sql.join(
-				finalOrder.map((id) => sql`${id}::uuid`),
-				sql`, `
-			)}]::uuid[]`;
-			await inner.execute(
-				sql`UPDATE attraction AS a SET sort_order = v.pos - 1, updated_at = now()
-					FROM unnest(${idArray}) WITH ORDINALITY AS v(id, pos)
-					WHERE a.id = v.id AND a.property_id = ${propertyId}`
-			);
-		}
+		await applyOrder(inner, {
+			table: 'attraction',
+			keyColumn: 'id',
+			scopeColumn: 'property_id',
+			scopeId: propertyId,
+			keyType: 'uuid',
+			current: current.map((a) => a.id),
+			requested: ids,
+			onForeign: (foreign) => new AttractionOrderError(propertyId, foreign)
+		});
 		return listAttractions(propertyId, inner);
 	});
 }
