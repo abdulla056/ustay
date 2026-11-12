@@ -48,10 +48,23 @@ export function coordinatePair(latitude: unknown, longitude: unknown, fail: Erro
 	if (!ok(longitude, 180)) throw fail('longitude must be a number from -180 to 180');
 }
 
-/** A positive integer. */
-export function positiveInt(value: unknown, field: string, fail: ErrorFactory): number {
-	if (typeof value !== 'number' || !Number.isInteger(value) || value <= 0) {
-		throw fail(`${field} must be a positive integer`);
+/** Largest value a Postgres `integer` (int4) column holds. */
+export const INT4_MAX = 2_147_483_647;
+
+/** An integer from `min` to {@link INT4_MAX}, so an oversized value is a typed error, not a pg one. */
+function boundedInt(value: unknown, field: string, min: number, fail: ErrorFactory): number {
+	if (typeof value !== 'number' || !Number.isInteger(value) || value < min || value > INT4_MAX) {
+		throw fail(`${field} must be an integer from ${min} to ${INT4_MAX}`);
 	}
 	return value;
+}
+
+/** A positive integer that fits an int4 column. */
+export function positiveInt(value: unknown, field: string, fail: ErrorFactory): number {
+	return boundedInt(value, field, 1, fail);
+}
+
+/** A non-negative integer that fits an int4 column. */
+export function nonNegativeInt(value: unknown, field: string, fail: ErrorFactory): number {
+	return boundedInt(value, field, 0, fail);
 }

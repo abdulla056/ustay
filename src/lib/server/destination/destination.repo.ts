@@ -7,14 +7,14 @@ import { and, asc, eq } from 'drizzle-orm';
 import { db, type Executor } from '$lib/server/db';
 import { isUuid } from '$lib/server/db/helpers';
 import { destination, property, propertyLocation } from '$lib/server/db/schema';
-import { uniqueSlug } from '$lib/server/db/slug';
+import { slugify, uniqueSlug } from '$lib/server/db/slug';
 import {
 	countryCode,
 	optionalText,
 	pick,
 	requiredText,
 	type ErrorFactory
-} from '$lib/server/property/validate';
+} from '$lib/server/validate';
 
 export type Destination = typeof destination.$inferSelect;
 
@@ -32,6 +32,14 @@ export class DestinationValidationError extends Error {
 	constructor(message: string) {
 		super(message);
 		this.name = 'DestinationValidationError';
+	}
+}
+
+/** Thrown when a destination id is malformed or no such destination exists. */
+export class DestinationNotFoundError extends Error {
+	constructor(readonly destinationId: string) {
+		super(`Destination ${destinationId} not found`);
+		this.name = 'DestinationNotFoundError';
 	}
 }
 
@@ -57,21 +65,40 @@ async function isSlugTaken(candidate: string, tx: Executor) {
 	return row !== undefined;
 }
 
+/**
+ * Create a destination. A caller-supplied `slug` is normalised with `slugify`; one that is empty
+ * after that, or already taken (also when a concurrent insert wins the race), is a
+ * {@link DestinationValidationError}, never a raw unique-violation.
+ */
 export async function createDestination(input: NewDestinationInput, tx: Executor = db) {
 	const values = clean(input);
 	if (values.name === undefined || values.countryCode === undefined) {
 		throw fail('name and countryCode are required');
 	}
 	const name = values.name as string;
-	const slug =
-		input.slug !== undefined
-			? requiredText(input.slug, 'slug', fail)
-			: await uniqueSlug(name, (c) => isSlugTaken(c, tx));
-	const [row] = await tx
-		.insert(destination)
-		.values({ ...values, name, countryCode: values.countryCode as string, slug })
-		.returning();
-	return row;
+	let slug: string;
+	if (input.slug !== undefined) {
+		if (typeof input.slug !== 'string') throw fail('slug must be a string');
+		slug = slugify(input.slug);
+		if (slug === '') throw fail('slug must contain letters or digits');
+		if (await isSlugTaken(slug, tx)) throw fail(`slug "${slug}" is already taken`);
+	} else {
+		slug = await uniqueSlug(name, (c) => isSlugTaken(c, tx));
+	}
+	try {
+		// A savepoint, so a lost race does not abort a caller's surrounding transaction.
+		return await tx.transaction(async (inner) => {
+			const [row] = await inner
+				.insert(destination)
+				.values({ ...values, name, countryCode: values.countryCode as string, slug })
+				.returning();
+			return row;
+		});
+	} catch (error) {
+		const e = error as { code?: string; cause?: { code?: string } };
+		if ((e.cause?.code ?? e.code) === '23505') throw fail(`slug "${slug}" is already taken`);
+		throw error;
+	}
 }
 
 /** `undefined` for an unknown slug. */

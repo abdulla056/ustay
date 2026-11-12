@@ -11,6 +11,7 @@ import { eq } from 'drizzle-orm';
 import { db, type Executor } from '$lib/server/db';
 import { isUuid } from '$lib/server/db/helpers';
 import { hostProfile } from '$lib/server/db/schema';
+import { optionalText, requiredText, type ErrorFactory } from '$lib/server/validate';
 import { assertImageInLibrary, HostAvatarError } from './media.repo';
 import { findPropertyById, PropertyNotFoundError } from './property.repo';
 
@@ -44,6 +45,8 @@ export class HostProfileNotFoundError extends Error {
 	}
 }
 
+const fail: ErrorFactory = (m) => new HostProfileValidationError(m);
+
 /** Only these keys survive into a write: types alone do not stop a cast from smuggling others. */
 const WRITABLE_FIELDS = ['displayName', 'bio', 'hostingSince', 'languages'] as const;
 
@@ -70,16 +73,10 @@ function cleanInput(input: HostProfileInput, timeZone: string): HostProfileInput
 	for (const key of WRITABLE_FIELDS) if (raw[key] !== undefined) clean[key] = raw[key];
 
 	if ('displayName' in clean) {
-		if (typeof clean.displayName !== 'string' || clean.displayName.trim() === '') {
-			throw new HostProfileValidationError('displayName must be a non-blank string');
-		}
-		clean.displayName = clean.displayName.trim();
+		clean.displayName = requiredText(clean.displayName, 'displayName', fail);
 	}
-	if ('bio' in clean && clean.bio !== null) {
-		if (typeof clean.bio !== 'string') throw new HostProfileValidationError('bio must be a string');
-		// A blank bio means "no bio": stored as null, never as an empty string.
-		clean.bio = clean.bio.trim() === '' ? null : clean.bio.trim();
-	}
+	// A blank bio means "no bio": stored as null, never as an empty string.
+	if ('bio' in clean) clean.bio = optionalText(clean.bio, 'bio', fail);
 	if ('languages' in clean) {
 		if (!Array.isArray(clean.languages) || clean.languages.some((l) => typeof l !== 'string')) {
 			throw new HostProfileValidationError('languages must be an array of strings');

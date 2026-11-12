@@ -10,6 +10,7 @@ import { eq } from 'drizzle-orm';
 import { db, type Executor } from '$lib/server/db';
 import { isUuid } from '$lib/server/db/helpers';
 import { destination, propertyLocation } from '$lib/server/db/schema';
+import { DestinationNotFoundError } from '$lib/server/destination/destination.repo';
 import { findPropertyById, PropertyNotFoundError } from './property.repo';
 import {
 	coordinatePair,
@@ -18,7 +19,7 @@ import {
 	pick,
 	requiredText,
 	type ErrorFactory
-} from './validate';
+} from '$lib/server/validate';
 
 export type PropertyLocation = typeof propertyLocation.$inferSelect;
 
@@ -35,14 +36,6 @@ export class LocationValidationError extends Error {
 	constructor(message: string) {
 		super(message);
 		this.name = 'LocationValidationError';
-	}
-}
-
-/** Thrown when a destination id is malformed or no such destination exists. */
-export class DestinationNotFoundError extends Error {
-	constructor(readonly destinationId: string) {
-		super(`Destination ${destinationId} not found`);
-		this.name = 'DestinationNotFoundError';
 	}
 }
 
@@ -68,7 +61,11 @@ const WRITABLE_FIELDS = [
 const OPTIONAL_TEXT = ['addressLine1', 'addressLine2', 'region', 'postalCode'] as const;
 const fail: ErrorFactory = (m) => new LocationValidationError(m);
 
-/** `undefined` for an unknown or malformed property id. */
+/**
+ * The full location, address included. **Owner/admin only**: never hand this to a public page
+ * (decision 8). Public pages use {@link getPublicPropertyLocation}. `undefined` for an unknown or
+ * malformed property id.
+ */
 export async function getPropertyLocation(propertyId: string, tx: Executor = db) {
 	if (!isUuid(propertyId)) return undefined;
 	const [row] = await tx
@@ -77,6 +74,46 @@ export async function getPropertyLocation(propertyId: string, tx: Executor = db)
 		.where(eq(propertyLocation.propertyId, propertyId))
 		.limit(1);
 	return row;
+}
+
+/** The location as a public page may see it. */
+export type PublicPropertyLocation = Pick<
+	PropertyLocation,
+	| 'locality'
+	| 'region'
+	| 'countryCode'
+	| 'destinationId'
+	| 'latitude'
+	| 'longitude'
+	| 'showExactLocation'
+> &
+	Partial<Pick<PropertyLocation, 'addressLine1' | 'addressLine2' | 'postalCode'>>;
+
+/** About 1 km: two decimal places of latitude/longitude. */
+const coarsen = (v: number | null) => (v === null ? null : Math.round(v * 100) / 100);
+
+/**
+ * The read public pages must use (decision 8). With `show_exact_location` off it returns only the
+ * locality, region, country, destination and coordinates rounded to two decimals (about 1 km),
+ * with no address lines or postal code. With it on, the full location. `undefined` for an unknown
+ * or malformed property id or a property without a location.
+ */
+export async function getPublicPropertyLocation(
+	propertyId: string,
+	tx: Executor = db
+): Promise<PublicPropertyLocation | undefined> {
+	const row = await getPropertyLocation(propertyId, tx);
+	if (!row) return undefined;
+	if (row.showExactLocation) return row;
+	return {
+		locality: row.locality,
+		region: row.region,
+		countryCode: row.countryCode,
+		destinationId: row.destinationId,
+		latitude: coarsen(row.latitude),
+		longitude: coarsen(row.longitude),
+		showExactLocation: false
+	};
 }
 
 /** Validate and normalise a patch. A touched coordinate is checked against the row it produces. */
@@ -157,6 +194,8 @@ export async function setPropertyDestination(
 						.from(destination)
 						.where(eq(destination.id, destinationId))
 						.limit(1)
+						// Blocks a concurrent delete of the destination until we commit.
+						.for('key share')
 				: [];
 			if (!found) throw new DestinationNotFoundError(String(destinationId));
 		}

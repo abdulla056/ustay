@@ -9,6 +9,7 @@ import {
 	listDestinations,
 	listPublishedPropertiesInDestination,
 	updateDestination,
+	DestinationNotFoundError,
 	DestinationValidationError
 } from '$lib/server/destination/destination.repo';
 import {
@@ -20,8 +21,8 @@ import {
 import { insertProperty, PropertyNotFoundError, publishProperty } from './property.repo';
 import {
 	deletePropertyLocation,
-	DestinationNotFoundError,
 	getPropertyLocation,
+	getPublicPropertyLocation,
 	LocationNotFoundError,
 	LocationValidationError,
 	setPropertyDestination,
@@ -196,7 +197,86 @@ describe('property location', () => {
 	});
 });
 
+describe('public location (decision 8)', () => {
+	const full = {
+		addressLine1: '1 Jalan Pantai',
+		addressLine2: 'Unit 2',
+		postalCode: '07000',
+		region: 'Kedah',
+		...here,
+		latitude: 6.294567,
+		longitude: 99.731234
+	};
+
+	it('hides the address and coarsens coordinates while show_exact_location is off', async () => {
+		const p = await makeProperty('Private');
+		const d = await createDestination({ name: 'Langkawi', countryCode: 'MY' });
+		await upsertPropertyLocation(p.id, full);
+		await setPropertyDestination(p.id, d.id);
+		const view = await getPublicPropertyLocation(p.id);
+		expect(view).toEqual({
+			locality: 'Cenang',
+			region: 'Kedah',
+			countryCode: 'MY',
+			destinationId: d.id,
+			latitude: 6.29,
+			longitude: 99.73,
+			showExactLocation: false
+		});
+		expect(view).not.toHaveProperty('addressLine1');
+		expect(view).not.toHaveProperty('postalCode');
+		// The owner read stays exact.
+		expect((await getPropertyLocation(p.id))?.latitude).toBe(6.294567);
+	});
+
+	it('returns the full location once the owner opts in', async () => {
+		const p = await makeProperty('Open');
+		await upsertPropertyLocation(p.id, { ...full, showExactLocation: true });
+		const view = await getPublicPropertyLocation(p.id);
+		expect(view).toMatchObject({
+			addressLine1: '1 Jalan Pantai',
+			postalCode: '07000',
+			latitude: 6.294567,
+			longitude: 99.731234
+		});
+	});
+
+	it('handles missing coordinates, missing locations and bad ids', async () => {
+		const p = await makeProperty('NoCoords');
+		expect(await getPublicPropertyLocation(p.id)).toBeUndefined();
+		await upsertPropertyLocation(p.id, here);
+		const view = await getPublicPropertyLocation(p.id);
+		expect(view?.latitude).toBeNull();
+		expect(await getPublicPropertyLocation('nope')).toBeUndefined();
+	});
+});
+
 describe('destination', () => {
+	it('normalises, rejects and de-duplicates caller-supplied slugs with typed errors', async () => {
+		const a = await createDestination({ name: 'A', countryCode: 'MY', slug: ' Pulau Langkawi! ' });
+		expect(a.slug).toBe('pulau-langkawi');
+		await expect(
+			createDestination({ name: 'B', countryCode: 'MY', slug: 'pulau-langkawi' })
+		).rejects.toBeInstanceOf(DestinationValidationError);
+		await expect(
+			createDestination({ name: 'B', countryCode: 'MY', slug: '!!!' })
+		).rejects.toBeInstanceOf(DestinationValidationError);
+		await expect(
+			createDestination({ name: 'B', countryCode: 'MY', slug: 5 as never })
+		).rejects.toBeInstanceOf(DestinationValidationError);
+	});
+
+	it('maps a lost slug race to a typed error, not a raw 23505', async () => {
+		const [x, y] = await Promise.allSettled([
+			createDestination({ name: 'X', countryCode: 'MY', slug: 'race' }),
+			createDestination({ name: 'Y', countryCode: 'MY', slug: 'race' })
+		]);
+		const results = [x, y];
+		expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+		const lost = results.find((r) => r.status === 'rejected') as PromiseRejectedResult;
+		expect(lost.reason).toBeInstanceOf(DestinationValidationError);
+	});
+
 	it('creates with a generated unique slug, finds, lists, updates and validates', async () => {
 		const a = await createDestination({ name: ' Langkawi ', countryCode: 'my', region: ' ' });
 		const b = await createDestination({ name: 'Langkawi', countryCode: 'MY' });
@@ -326,7 +406,10 @@ describe('attractions', () => {
 			{ distanceMeters: -5 },
 			{ latitude: 1 },
 			{ latitude: 100, longitude: 0 },
-			{ sortOrder: -1 }
+			{ sortOrder: -1 },
+			{ sortOrder: 2_147_483_648 },
+			{ travelMinutes: 2_147_483_648, travelMode: 'walk' },
+			{ distanceMeters: 2_147_483_648 }
 		]) {
 			await expect(make(p.id, 'Ok', bad)).rejects.toBeInstanceOf(AttractionValidationError);
 		}

@@ -168,6 +168,10 @@ Rules:
 
 ## Location, destinations and attractions (UST-16)
 
+- **Privacy is enforced in code (decision 8).** `getPropertyLocation` returns the full row and is
+  owner/admin only. Public pages must use `getPublicPropertyLocation`: with
+  `show_exact_location` off it returns only locality, region, country, destination and
+  coordinates rounded to two decimals (about 1 km), with no address lines or postal code.
 - **`destination`** is platform-curated (not per-owner): `slug` (unique), `name`, `region`,
   `country_code` (ISO 3166-1 alpha-2, CHECK `^[A-Z]{2}$`), `summary`. No media yet (Phase 5).
 - **`property_location`** is 1:1 with `property` (`property_id` primary key, cascading FK). Address

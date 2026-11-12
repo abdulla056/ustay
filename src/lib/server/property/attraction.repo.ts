@@ -7,7 +7,7 @@
  * transaction, asset row locked) and again by the composite foreign key in `location.schema.ts`.
  * Writes lock the property row so concurrent reorders and appends serialise.
  */
-import { and, asc, eq, sql } from 'drizzle-orm';
+import { asc, eq, sql } from 'drizzle-orm';
 import { db, type Executor } from '$lib/server/db';
 import { isUuid } from '$lib/server/db/helpers';
 import { attraction, attractionCategory, travelMode } from '$lib/server/db/schema';
@@ -15,12 +15,13 @@ import { assertImageInLibrary, AttractionImageError } from './media.repo';
 import { findPropertyById, PropertyNotFoundError } from './property.repo';
 import {
 	coordinatePair,
+	nonNegativeInt,
 	optionalText,
 	pick,
 	positiveInt,
 	requiredText,
 	type ErrorFactory
-} from './validate';
+} from '$lib/server/validate';
 
 export { AttractionImageError };
 
@@ -103,12 +104,7 @@ function cleanInput(input: object, existing?: Attraction) {
 	) {
 		throw fail(`travelMode must be one of ${travelMode.enumValues.join(', ')}`);
 	}
-	if ('sortOrder' in clean) {
-		const v = clean.sortOrder;
-		if (typeof v !== 'number' || !Number.isInteger(v) || v < 0) {
-			throw fail('sortOrder must be a non-negative integer');
-		}
-	}
+	if ('sortOrder' in clean) nonNegativeInt(clean.sortOrder, 'sortOrder', fail);
 	if ('travelMinutes' in clean || 'travelMode' in clean) {
 		const minutes =
 			'travelMinutes' in clean ? clean.travelMinutes : (existing?.travelMinutes ?? null);
@@ -179,6 +175,7 @@ export async function insertAttraction(input: NewAttractionInput, tx: Executor =
 export async function updateAttraction(id: string, patch: AttractionPatch, tx: Executor = db) {
 	if (!isUuid(id)) return undefined;
 	return tx.transaction(async (inner) => {
+		if (!(await lockOwner(id, inner))) return undefined;
 		const [current] = await inner
 			.select()
 			.from(attraction)
@@ -200,15 +197,34 @@ export async function updateAttraction(id: string, patch: AttractionPatch, tx: E
 /** Delete an attraction. `undefined` if there was none (or the id is malformed). */
 export async function deleteAttraction(id: string, tx: Executor = db) {
 	if (!isUuid(id)) return undefined;
-	const [row] = await tx.delete(attraction).where(eq(attraction.id, id)).returning();
-	return row;
+	return tx.transaction(async (inner) => {
+		if (!(await lockOwner(id, inner))) return undefined;
+		const [row] = await inner.delete(attraction).where(eq(attraction.id, id)).returning();
+		return row;
+	});
+}
+
+/**
+ * Lock the property that owns attraction `id` (property first, always, so every writer takes
+ * locks in the same order). `false` if the attraction or its property is gone.
+ */
+async function lockOwner(id: string, tx: Executor): Promise<boolean> {
+	const [owner] = await tx
+		.select({ propertyId: attraction.propertyId })
+		.from(attraction)
+		.where(eq(attraction.id, id))
+		.limit(1);
+	return (
+		owner !== undefined &&
+		(await findPropertyById(owner.propertyId, tx, { lock: true })) !== undefined
+	);
 }
 
 /**
  * Reorder: the listed attractions take positions `0..n-1` in the order given (duplicates collapse
- * to their first position); any not listed follow, in their current order. Locks the property.
- * Throws {@link PropertyNotFoundError}, or {@link AttractionOrderError} (changing nothing) if an id
- * is not an attraction of this property.
+ * to their first position); any not listed follow, in their current order. Locks the property and
+ * writes every position in one statement. Throws {@link PropertyNotFoundError}, or
+ * {@link AttractionOrderError} (changing nothing) if an id is not an attraction of this property.
  */
 export async function setAttractionOrder(propertyId: string, ids: string[], tx: Executor = db) {
 	const ordered = [...new Set(ids)];
@@ -222,11 +238,16 @@ export async function setAttractionOrder(propertyId: string, ids: string[], tx: 
 		if (foreign.length > 0) throw new AttractionOrderError(propertyId, foreign);
 		const listed = new Set(ordered);
 		const finalOrder = [...ordered, ...current.map((a) => a.id).filter((id) => !listed.has(id))];
-		for (const [position, id] of finalOrder.entries()) {
-			await inner
-				.update(attraction)
-				.set({ sortOrder: position })
-				.where(and(eq(attraction.id, id), eq(attraction.propertyId, propertyId)));
+		if (finalOrder.length > 0) {
+			const idArray = sql`ARRAY[${sql.join(
+				finalOrder.map((id) => sql`${id}::uuid`),
+				sql`, `
+			)}]::uuid[]`;
+			await inner.execute(
+				sql`UPDATE attraction AS a SET sort_order = v.pos - 1, updated_at = now()
+					FROM unnest(${idArray}) WITH ORDINALITY AS v(id, pos)
+					WHERE a.id = v.id AND a.property_id = ${propertyId}`
+			);
 		}
 		return listAttractions(propertyId, inner);
 	});

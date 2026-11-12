@@ -240,7 +240,12 @@ export async function updateMediaAsset(id: string, patch: MediaAssetPatch, tx: E
 	});
 }
 
-/** Deleting an asset removes its placements (cascade) and clears it as a poster (set null). */
+/**
+ * Deleting an asset removes its placements (cascade) and clears it as a poster, a host avatar or
+ * an attraction image (set null). The avatar and attraction-image clears rely on the
+ * column-scoped `ON DELETE SET NULL (column)` in the migrations (`drizzle/0004_*`, `0005_*`), so
+ * use `db:reset` or `db:migrate`, not `db:push`, on a database where assets get deleted.
+ */
 export async function deleteMediaAsset(id: string, tx: Executor = db) {
 	if (!isUuid(id)) return undefined;
 	const [row] = await tx.delete(mediaAsset).where(eq(mediaAsset.id, id)).returning();
