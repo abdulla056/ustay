@@ -10,8 +10,10 @@
  */
 import { and, asc, eq, inArray } from 'drizzle-orm';
 import { db, type Executor } from '$lib/server/db';
+import { isUuid } from '$lib/server/db/helpers';
 import {
 	mediaAsset,
+	hostProfile,
 	mediaRole,
 	property,
 	propertyMedia,
@@ -56,11 +58,6 @@ export class MediaPosterError extends Error {
 	}
 }
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-/** Postgres rejects a malformed uuid with a 500-grade error; check the shape before querying. */
-export const isUuid = (value: unknown): value is string =>
-	typeof value === 'string' && UUID.test(value);
-
 /** Every asset column, listed so a new column is a deliberate addition to placement payloads. */
 const assetColumns = {
 	id: mediaAsset.id,
@@ -98,24 +95,42 @@ async function assertInLibrary(propertyId: string, assetIds: string[], tx: Execu
 }
 
 /**
- * A poster must be an image from the same library. Call inside a transaction: the poster row is
- * locked so it cannot change kind between this check and the write.
+ * `assetId` must be an image in `propertyId`'s library (posters, host avatars). Call inside a
+ * transaction: the asset row is locked so it cannot change kind between this check and the write.
+ * Throws {@link MediaNotInLibraryError}, or `notAnImage(assetId)`'s error for a video.
  */
-async function assertPoster(propertyId: string, posterAssetId: string, tx: Executor) {
-	if (!isUuid(posterAssetId) || !isUuid(propertyId)) {
-		throw new MediaNotInLibraryError(propertyId, [posterAssetId]);
+export async function assertImageInLibrary(
+	propertyId: string,
+	assetId: string,
+	tx: Executor,
+	notAnImage: (assetId: string) => Error
+) {
+	if (!isUuid(assetId) || !isUuid(propertyId)) {
+		throw new MediaNotInLibraryError(propertyId, [assetId]);
 	}
-	const [poster] = await tx
+	const [asset] = await tx
 		.select({ kind: mediaAsset.kind })
 		.from(mediaAsset)
-		.where(and(eq(mediaAsset.id, posterAssetId), eq(mediaAsset.propertyId, propertyId)))
+		.where(and(eq(mediaAsset.id, assetId), eq(mediaAsset.propertyId, propertyId)))
 		.limit(1)
 		.for('update');
-	if (!poster) throw new MediaNotInLibraryError(propertyId, [posterAssetId]);
-	if (poster.kind !== 'image') {
-		throw new MediaPosterError(posterAssetId, `Poster ${posterAssetId} must be an image asset`);
+	if (!asset) throw new MediaNotInLibraryError(propertyId, [assetId]);
+	if (asset.kind !== 'image') throw notAnImage(assetId);
+}
+
+/** Thrown when an avatar is not an image, or an asset that is a host avatar stops being one. */
+export class HostAvatarError extends Error {
+	constructor(
+		readonly assetId: string,
+		message: string
+	) {
+		super(message);
+		this.name = 'HostAvatarError';
 	}
 }
+
+const posterNotImage = (id: string) =>
+	new MediaPosterError(id, `Poster ${id} must be an image asset`);
 
 /** First occurrence wins, so the order a caller sends is the order stored. */
 const dedupe = (ids: string[]) => [...new Set(ids)];
@@ -139,7 +154,8 @@ export async function findMediaAssetById(id: string, tx: Executor = db) {
 
 export async function insertMediaAsset(input: NewMediaAssetInput, tx: Executor = db) {
 	return tx.transaction(async (inner) => {
-		if (input.posterAssetId) await assertPoster(input.propertyId, input.posterAssetId, inner);
+		if (input.posterAssetId)
+			await assertImageInLibrary(input.propertyId, input.posterAssetId, inner, posterNotImage);
 		const [row] = await inner.insert(mediaAsset).values(input).returning();
 		return row;
 	});
@@ -148,7 +164,8 @@ export async function insertMediaAsset(input: NewMediaAssetInput, tx: Executor =
 /**
  * `undefined` if the asset does not exist. `undefined` fields and `propertyId` are ignored; a patch
  * with nothing left returns the current row. Changing `kind` away from `image` is rejected with
- * {@link MediaPosterError} while the asset is another asset's poster.
+ * {@link MediaPosterError} while the asset is another asset's poster, and with
+ * {@link HostAvatarError} while it is a host avatar.
  */
 export async function updateMediaAsset(id: string, patch: MediaAssetPatch, tx: Executor = db) {
 	if (!isUuid(id)) return undefined;
@@ -166,7 +183,9 @@ export async function updateMediaAsset(id: string, patch: MediaAssetPatch, tx: E
 			.limit(1)
 			.for('update');
 		if (!current) return undefined;
-		if (clean.posterAssetId) await assertPoster(current.propertyId, clean.posterAssetId, inner);
+		if (clean.posterAssetId) {
+			await assertImageInLibrary(current.propertyId, clean.posterAssetId, inner, posterNotImage);
+		}
 		if (clean.kind !== undefined && clean.kind !== 'image') {
 			const [user] = await inner
 				.select({ id: mediaAsset.id })
@@ -178,6 +197,14 @@ export async function updateMediaAsset(id: string, patch: MediaAssetPatch, tx: E
 					id,
 					`Asset ${id} is the poster of ${user.id} and must stay an image`
 				);
+			}
+			const [avatarOf] = await inner
+				.select({ propertyId: hostProfile.propertyId })
+				.from(hostProfile)
+				.where(eq(hostProfile.avatarAssetId, id))
+				.limit(1);
+			if (avatarOf) {
+				throw new HostAvatarError(id, `Asset ${id} is a host avatar and must stay an image`);
 			}
 		}
 		const [row] = await inner

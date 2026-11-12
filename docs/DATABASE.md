@@ -135,6 +135,11 @@ Two modes, and mixing them is what corrupts a shared database:
 Rules:
 
 - **Never** `db:push` against a shared or production database.
+- `db:push` cannot express the column-scoped `ON DELETE SET NULL (col)` hand-edited into the
+  media poster FK (`0003`) and the host avatar FK (`0004`): it creates a plain `SET NULL`, and
+  deleting a poster or avatar asset then tries to null `property_id` and fails. The migrations
+  are the source of truth for those FKs, so use `db:reset` (which applies them) or `db:migrate`
+  on any database where you delete assets.
 - Generated SQL is committed and, once merged, immutable. To fix a bad migration, add another.
 - Read the generated SQL before committing. `drizzle-kit` is configured with `strict: true`, so a
   rename it cannot tell from a drop/create will ask — a wrong answer here is data loss.
@@ -167,10 +172,10 @@ Rules:
 adds the actual domain seed data (UST-20); this section is about the runner and conventions that
 data drops into.
 
-| Command            | What it does                                                                        |
-| ------------------ | ----------------------------------------------------------------------------------- |
-| `bun run db:seed`  | Runs every module in `seedModules` (`src/lib/server/db/seed/index.ts`). Idempotent. |
-| `bun run db:reset` | Drops + recreates the `public` schema, `db:push`, then `db:seed`. Destructive.      |
+| Command            | What it does                                                                                |
+| ------------------ | ------------------------------------------------------------------------------------------- |
+| `bun run db:seed`  | Runs every module in `seedModules` (`src/lib/server/db/seed/index.ts`). Idempotent.         |
+| `bun run db:reset` | Drops + recreates the `public` schema, applies the migrations, then `db:seed`. Destructive. |
 
 **Layout** — `src/lib/server/db/seed/`:
 

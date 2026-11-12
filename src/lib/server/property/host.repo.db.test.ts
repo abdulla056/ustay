@@ -1,9 +1,19 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { db } from '$lib/server/test/db';
 import { hostProfile, mediaAsset, property } from '$lib/server/db/schema';
-import { insertMediaAsset, MediaNotInLibraryError, type NewMediaAssetInput } from './media.repo';
-import { insertProperty, PropertyNotFoundError, setPropertyStory } from './property.repo';
+import {
+	insertMediaAsset,
+	MediaNotInLibraryError,
+	updateMediaAsset,
+	type NewMediaAssetInput
+} from './media.repo';
+import {
+	insertProperty,
+	PropertyNotFoundError,
+	PropertyValidationError,
+	setPropertyStory
+} from './property.repo';
 import {
 	deleteHostProfile,
 	getHostProfile,
@@ -108,6 +118,57 @@ describe('host profile', () => {
 		expect(await deleteHostProfile('nope')).toBeUndefined();
 	});
 
+	it('trims text, turns a blank bio into null and tidies languages', async () => {
+		const p = await makeProperty('Normalise');
+		const row = await upsertHostProfile(p.id, {
+			displayName: 'A',
+			bio: '  ',
+			languages: [' en ', 'ms', 'en', '  ']
+		});
+		expect(row.bio).toBeNull();
+		expect(row.languages).toEqual(['en', 'ms']);
+		expect((await upsertHostProfile(p.id, { bio: '  Hi  ' })).bio).toBe('Hi');
+	});
+
+	it('rejects wrong types with a typed error, not a crash or a raw pg error', async () => {
+		const p = await makeProperty('Casts');
+		await upsertHostProfile(p.id, { displayName: 'A' });
+		for (const bad of [
+			{ displayName: null },
+			{ displayName: 5 },
+			{ bio: 5 },
+			{ languages: null },
+			{ languages: 'en' },
+			{ languages: ['en', 3] },
+			{ hostingSince: '2010' },
+			{ hostingSince: 2010.5 }
+		]) {
+			await expect(
+				upsertHostProfile(p.id, bad as never),
+				JSON.stringify(bad)
+			).rejects.toBeInstanceOf(HostProfileValidationError);
+		}
+	});
+
+	it('computes "this year" in the property timezone', async () => {
+		// Pacific/Kiritimati is UTC+14 and Etc/GMT+12 is UTC-12: they differ by a calendar day, so
+		// on 31 Dec / 1 Jan UTC they straddle a year boundary.
+		vi.useFakeTimers({ toFake: ['Date'] });
+		try {
+			vi.setSystemTime(new Date('2030-12-31T12:00:00Z'));
+			const east = await insertProperty({ ...base, name: 'East', timezone: 'Pacific/Kiritimati' });
+			const west = await insertProperty({ ...base, name: 'West', timezone: 'Etc/GMT+12' });
+			expect(
+				(await upsertHostProfile(east.id, { displayName: 'A', hostingSince: 2031 })).hostingSince
+			).toBe(2031);
+			await expect(
+				upsertHostProfile(west.id, { displayName: 'A', hostingSince: 2031 })
+			).rejects.toBeInstanceOf(HostProfileValidationError);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
 	it('enforces the checks in the database too', async () => {
 		const p = await makeProperty('Db checks');
 		const insert = (values: Partial<typeof hostProfile.$inferInsert>) =>
@@ -164,6 +225,21 @@ describe('host avatar', () => {
 		await expect(setHostAvatar(bare.id, img.id)).rejects.toBeInstanceOf(HostProfileNotFoundError);
 	});
 
+	it('keeps an avatar asset an image', async () => {
+		const p = await makeProperty('Avatar kind');
+		await upsertHostProfile(p.id, { displayName: 'A' });
+		const a = await makeAsset(p.id);
+		await setHostAvatar(p.id, a.id);
+		await expect(
+			updateMediaAsset(a.id, { kind: 'video', durationSeconds: 3 })
+		).rejects.toBeInstanceOf(HostAvatarError);
+		expect((await updateMediaAsset(a.id, { altText: 'Still fine' }))?.kind).toBe('image');
+		await setHostAvatar(p.id, null);
+		expect((await updateMediaAsset(a.id, { kind: 'video', durationSeconds: 3 }))?.kind).toBe(
+			'video'
+		);
+	});
+
 	it('is enforced by the composite foreign key as well', async () => {
 		const p = await makeProperty('Avatar fk');
 		const other = await makeProperty('Avatar fk other');
@@ -195,9 +271,21 @@ describe('property story', () => {
 		expect([cleared.storyHeading, cleared.storyBody]).toEqual([null, null]);
 	});
 
-	it('rejects blank values and unknown properties', async () => {
+	it('trims, treats blank as cleared, and rejects non-strings', async () => {
 		const p = await makeProperty('Story rules');
-		expect(await pgCode(setPropertyStory(p.id, { body: '  ' }))).toBe(CHECK_VIOLATION);
+		const set = await setPropertyStory(p.id, { heading: '  Roots  ', body: 'Text' });
+		expect(set.storyHeading).toBe('Roots');
+		const blank = await setPropertyStory(p.id, { heading: '   ', body: '\n' });
+		expect([blank.storyHeading, blank.storyBody]).toEqual([null, null]);
+		await expect(setPropertyStory(p.id, { body: 5 as never })).rejects.toBeInstanceOf(
+			PropertyValidationError
+		);
+		const raw = (v: string) =>
+			db.update(property).set({ storyBody: v }).where(eq(property.id, p.id));
+		expect(await pgCode(raw('  '))).toBe(CHECK_VIOLATION);
+	});
+
+	it('rejects unknown properties', async () => {
 		await expect(setPropertyStory('nope', { body: 'x' })).rejects.toBeInstanceOf(
 			PropertyNotFoundError
 		);

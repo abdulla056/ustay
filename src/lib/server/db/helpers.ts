@@ -101,3 +101,9 @@ export function slug(name = 'slug') {
 export function userRef(name = 'user_id', onDelete: ReferentialAction = 'cascade') {
 	return text(name).references(() => user.id, { onDelete });
 }
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Postgres rejects a malformed uuid with a 500-grade error; check the shape before querying. */
+export const isUuid = (value: unknown): value is string =>
+	typeof value === 'string' && UUID.test(value);
