@@ -192,6 +192,32 @@ Rules:
   `(lat IS NULL) = (lng IS NULL) AND lat BETWEEN ... AND lng BETWEEN ...`. An `OR` of the two
   halves would let a lone latitude through.
 
+## Microsite config and sections (UST-17)
+
+- **Two sources of truth.** The curated presets live in **code**, in `src/lib/microsite/registry.ts`
+  (pure data, no server imports, shared by the repo and the Phase 2 renderer): templates (key,
+  name, ordered default `{ type, variant }` sections), accent presets (`light` on paper, `dark` on
+  ink), font pairings, and the allowed variants per section type. They map to components and
+  tokens, so adding a preset is a code change, not a migration. The **database** stores only a
+  property's choices. A unit test holds every accent to WCAG AA (4.5:1) on its tone.
+- **`microsite_config`** is 1:1 with `property` (`property_id` primary key, cascading FK):
+  `template_key`, `accent_key`, `font_key`, all `text NOT NULL` with the registry defaults. No
+  CHECK or enum, so retiring a preset needs no migration. Writes validate keys against the
+  registry; reads (`getMicrositeConfig`) resolve an unknown or removed key to the default, so a
+  deleted preset never breaks a live microsite.
+- **`microsite_section`**: `type` is the closed `microsite_section_type` enum (hero, overview,
+  gallery, rooms, amenities, host_story, location, booking_cta; a test keeps it equal to the
+  registry), `variant` (text, validated against the registry for that type, default `'default'`),
+  `enabled`, `sort_order`. `UNIQUE (property_id, type)`: each section at most once per property.
+  Index on `(property_id, sort_order)`. No per-section settings or JSON: content comes from the
+  domain tables.
+- **No rows is a valid state.** `getRenderableMicrosite` falls back to the resolved template's
+  default sections when a property has none. Section edits (`setSectionEnabled`,
+  `setSectionVariant`, `setSectionOrder`) need rows to exist, so the dashboard calls
+  `applyTemplate` first; it replaces the whole list with the template's defaults.
+- **Writes lock the property row** (as in UST-15/16). `setSectionOrder` writes every position in
+  one statement.
+
 ## Seeding
 
 `bun run db:seed` and `bun run db:reset` (UST-10) are the harness for local/dev data. Phase 1
