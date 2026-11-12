@@ -19,6 +19,18 @@ const dirname =
 // for `src/lib/server/test/env.ts`, which reads that `test.env`. Other projects are untouched.
 // The global setup re-checks the URL (host, db name) before dropping anything.
 const DB_TEST_GLOB = 'src/**/*.db.test.{js,ts}';
+
+// Browser-mode files run side by side in separate pages of one Chromium. Chromium
+// throttles the ones it considers backgrounded or occluded (timers clamped, rAF
+// paused), and Playwright's own click/stability checks and GSAP's ticker both ride
+// rAF, so under load a test would hang until its timeout (UST-78). Opt out of that.
+const unthrottledChromium = {
+	args: [
+		'--disable-renderer-backgrounding',
+		'--disable-backgrounding-occluded-windows',
+		'--disable-background-timer-throttling'
+	]
+};
 const dbTestEnv: Record<string, string> = {};
 if (process.env.VITEST) {
 	const dotenv = loadEnv('test', dirname, '');
@@ -67,7 +79,7 @@ export default defineConfig({
 					name: 'client',
 					browser: {
 						enabled: true,
-						provider: playwright(),
+						provider: playwright({ launchOptions: unthrottledChromium }),
 						instances: [{ browser: 'chromium', headless: true }]
 					},
 					include: ['src/**/*.svelte.{test,spec}.{js,ts}'],
@@ -119,7 +131,7 @@ export default defineConfig({
 					browser: {
 						enabled: true,
 						headless: true,
-						provider: playwright({}),
+						provider: playwright({ launchOptions: unthrottledChromium }),
 						instances: [{ browser: 'chromium' }]
 					}
 				}
