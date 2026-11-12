@@ -223,6 +223,53 @@ Rules:
 - **Writes lock the property row** (as in UST-15/16). `setSectionOrder` writes every position in
   one statement.
 
+## Booking requests and messages (UST-18)
+
+Booking requests only (decision 3); guests need just an email (decision 4). Code:
+`db/booking.schema.ts`, `booking/booking.repo.ts`, and the pure rules in `booking/lifecycle.ts`.
+
+- **`booking_request`** holds both kinds in one table, so the owner's inbox is one list. `kind` is
+  `booking` (check-in/out dates, party, optional room, price snapshot) or `question` (a general
+  enquiry: no dates, room, party or price). `reference` is a unique human code such as
+  `UST-7K3P9Q` (alphabet without `0/O/1/I`, retried on collision). CHECKs: a booking has both
+  dates with `check_out > check_in`, `adults >= 1` and `children >= 0`; a question has none of
+  those; a question is only `pending` or `closed` and a booking is never `closed`; the guest name
+  is non-blank; `guest_email` is lower case with an `@`; `currency` is `^[A-Z]{3}$`; the two price
+  columns are both set or both null and `>= 0`.
+- **Dates** are `date` columns (`YYYY-MM-DD` strings in Drizzle), calendar dates in the property's
+  timezone. `createBookingRequest` rejects a `check_in` before today in that timezone.
+- **The room** is a composite FK `(property_id, room_id)` -> `room(property_id, id)`, so it must
+  belong to the same property, with the hand-edited `ON DELETE SET NULL (room_id)` (see
+  `drizzle/0007_*`; `db:push` would make it a plain `SET NULL`). Deleting a room keeps the request
+  and its price snapshot.
+- **The price is a snapshot** taken at creation, only for a booking with a room: the property's
+  `currency`, the room's `nightly_rate_minor`, and `estimated_total_minor = rate x nights`
+  (exact integer minor units, no rounding; overflow of an int4 is a typed error). A later rate
+  change never rewrites it. Requests do not block dates or hold inventory: the owner decides.
+- **Lifecycle** (`TRANSITIONS` in `lifecycle.ts`, enforced under `FOR UPDATE`): a booking goes
+  `pending` -> `accepted | declined | cancelled | expired`, and `accepted` -> `cancelled`; a
+  question goes `pending` -> `closed`. Anything else throws `BookingTransitionError`.
+  `responded_at` is set on accept/decline and `cancelled_at` on cancel. Each transition appends a
+  `system` message in the same transaction. `expires_at` is created + 72 hours (`REQUEST_TTL_MS`);
+  `expireStaleRequests` expires overdue pending **bookings** (never questions) in one UPDATE. It
+  needs a caller (a scheduled job, Phase 6): nothing runs it yet. An overdue request that has not
+  been swept can still be accepted.
+- **`booking_message`** is the append-only thread (no `updated_at`, no edits): `sender` is
+  `guest | host | system`, `author_user_id` is null for a guest without an account, `body` is
+  non-blank. Cascades with the request. The guest's opening note is stored on the request and as
+  the first `guest` message.
+- **Guest access token.** On create the repo draws 32 random bytes with
+  `crypto.getRandomValues`, stores only the SHA-256 hex (`guest_access_token_hash`, unique), and
+  returns the plain base64url token **once**, for the emailed link. It is never stored or logged;
+  `findBookingRequestByAccessToken` hashes the presented token and looks up the hash. Repo reads
+  never return the hash column.
+- **Authorisation is the route's job.** The repository does not know who is calling. Phase 6
+  routes must decide who may accept/decline/close (the property owner), who may cancel (the owner,
+  or the guest presenting the token), who may read a thread, and which `sender` a caller may use
+  for `addMessage`. `listGuestRequests` trusts that the caller proved the email or account.
+- Deleting a property cascades to its requests and messages; deleting a guest or author account
+  nulls the reference and keeps the row.
+
 ## Seeding
 
 `bun run db:seed` and `bun run db:reset` (UST-10) are the harness for local/dev data. Phase 1

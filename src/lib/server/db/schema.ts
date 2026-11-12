@@ -6,6 +6,7 @@
 // the db:push vs db:generate migration workflow are decided there.
 export * from './auth.schema';
 export * from './amenity.schema';
+export * from './booking.schema';
 export * from './host.schema';
 export * from './location.schema';
 export * from './media.schema';

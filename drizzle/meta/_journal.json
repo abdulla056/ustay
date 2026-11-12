@@ -50,6 +50,13 @@
       "when": 1794503401210,
       "tag": "0006_worthless_blob",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1794503957282,
+      "tag": "0007_abandoned_red_shift",
+      "breakpoints": true
     }
   ]
 }
