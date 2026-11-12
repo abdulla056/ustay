@@ -1,5 +1,5 @@
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { page } from 'vitest/browser';
 import {
 	displayEntrance,
@@ -12,12 +12,25 @@ import {
 	smoothScroll,
 	tonalScroll
 } from './index';
+import { fontsReady, loadMotion, loadSplitText } from './internal';
 
 // The utilities are attachments — plain `(element) => cleanup` functions — so they
 // are tested by calling them on a real element rather than through a component.
 // What matters is the contract every one of them shares: prime synchronously so
 // content can't flash, tear everything down on cleanup, and do nothing at all
 // when the visitor asked for reduced motion.
+
+// Held-open tweens: a test that inspects a mid-entrance state parks the tween this
+// long, so no amount of scheduler delay under load can finish it first. Every such
+// test tears down (or is cleaned up by `afterEach`) long before it elapses.
+const HOLD = 30;
+
+// The first use of each library is a cold dynamic import through Vite's dev
+// server, which can take seconds on a loaded machine. Pay that here, once, so a
+// test's own timeout measures the behaviour under test rather than the fetch.
+beforeAll(async () => {
+	await Promise.all([loadMotion(), loadSplitText(), import('lenis'), fontsReady()]);
+}, 60_000);
 
 const mounted: HTMLElement[] = [];
 const teardowns: Array<() => void> = [];
@@ -110,7 +123,7 @@ describe('displayEntrance', () => {
 		const element = mount(headline, 'h1');
 
 		// A delay holds the lines at their start long enough to inspect them.
-		attach(displayEntrance({ duration: 2, delay: 2 })(element));
+		attach(displayEntrance({ duration: HOLD, delay: HOLD })(element));
 
 		// Before GSAP, SplitText and the fonts are here: faded, not yet split.
 		expect(element.style.opacity).toBe('0');
@@ -137,7 +150,7 @@ describe('displayEntrance', () => {
 		const element = mount(headline, 'h1');
 		Object.assign(element.style, { width: '6ch', fontSize: '20px', lineHeight: '25px' });
 
-		attach(displayEntrance({ duration: 3, delay: 0 })(element));
+		attach(displayEntrance({ duration: HOLD, delay: 0 })(element));
 
 		await expect.poll(() => lines(element).length, { timeout: 5000 }).toBeGreaterThan(1);
 		// Each line is exactly one line box tall: the split matches the wrap.
@@ -155,23 +168,26 @@ describe('displayEntrance', () => {
 
 		attach(displayEntrance({ duration: 0.2, delay: 2 })(element));
 		await expect.poll(() => lines(element).length, { timeout: 5000 }).toBe(1);
-		const splitAt = performance.now();
 		const [first] = lines(element);
 
 		// Resize well inside the delay window; SplitText re-splits ~200ms later.
 		await new Promise((resolve) => setTimeout(resolve, 1200));
+		const resizedAt = performance.now();
 		element.style.width = '50ch';
-		await expect.poll(() => first.isConnected, { timeout: 2000 }).toBe(false);
+		await expect.poll(() => first.isConnected, { timeout: 5000 }).toBe(false);
 
-		// Landing on the original schedule (~2.2s) — a restarted delay would be ~3.6s.
-		await expect.poll(() => lines(element).length, { timeout: 3000 }).toBe(0);
-		expect(performance.now() - splitAt).toBeLessThan(2900);
+		// The original schedule lands ~1s after the resize (2.2s from the first
+		// split, resized at 1.2s+); a restarted delay would take 2s+ from the
+		// resize. Measured from the resize, so load that delays the test's own
+		// steps shortens the remaining wait rather than lengthening it.
+		await expect.poll(() => lines(element).length, { timeout: 5000 }).toBe(0);
+		expect(performance.now() - resizedAt).toBeLessThan(1900);
 	});
 
 	it('keeps the original text as the accessible name while split', async () => {
 		const element = mount(headline, 'h1');
 
-		attach(displayEntrance({ duration: 2, delay: 0 })(element));
+		attach(displayEntrance({ duration: HOLD, delay: 0 })(element));
 		await expect.poll(() => lines(element).length, { timeout: 5000 }).toBeGreaterThan(0);
 
 		expect(element.getAttribute('aria-label')).toBe(name);
@@ -188,8 +204,8 @@ describe('displayEntrance', () => {
 		const labelled = mount('Every stay has a <em>story.</em>', 'h2');
 		labelled.setAttribute('aria-label', 'Our story');
 
-		attach(displayEntrance({ duration: 2, delay: 0 })(broken));
-		attach(displayEntrance({ duration: 2, delay: 0 })(labelled));
+		attach(displayEntrance({ duration: HOLD, delay: 0 })(broken));
+		attach(displayEntrance({ duration: HOLD, delay: 0 })(labelled));
 		await expect.poll(() => lines(broken).length, { timeout: 5000 }).toBe(2);
 		await expect.poll(() => lines(labelled).length, { timeout: 5000 }).toBeGreaterThan(0);
 
@@ -202,10 +218,16 @@ describe('displayEntrance', () => {
 		const element = mount(headline, 'h1');
 		const authored = [...element.childNodes];
 
-		attach(displayEntrance({ duration: 0.2, delay: 0 })(element));
-		await expect.poll(() => lines(element).length, { timeout: 5000 }).toBeGreaterThan(0);
+		// The split only lives for the 0.2s tween, so polling for it can miss it
+		// entirely when the page stalls. Watch the DOM instead of sampling it.
+		let split = false;
+		const observer = new MutationObserver(() => (split ||= lines(element).length > 0));
+		observer.observe(element, { childList: true, subtree: true });
 
-		await expect.poll(() => lines(element).length, { timeout: 5000 }).toBe(0);
+		attach(displayEntrance({ duration: 0.2, delay: 0 })(element));
+
+		await expect.poll(() => lines(element).length === 0 && split, { timeout: 5000 }).toBe(true);
+		observer.disconnect();
 		expect([...element.childNodes]).toEqual(authored);
 		expect(element.hasAttribute('aria-label')).toBe(false);
 		expect(element.getAttribute('style') ?? '').toBe('');
@@ -231,12 +253,12 @@ describe('displayEntrance', () => {
 		const element = mount(headline, 'h1');
 		const authored = [...element.childNodes];
 
-		attach(displayEntrance({ duration: 5, delay: 0 })(element));
+		attach(displayEntrance({ duration: HOLD, delay: 0 })(element));
 		await expect.poll(() => lines(element).length, { timeout: 5000 }).toBeGreaterThan(0);
 		// What Svelte does to a `{name}`: write its own text node.
 		(authored[0] as Text).nodeValue = 'Every room has a ';
 
-		await expect.poll(() => lines(element).length, { timeout: 1000 }).toBe(0);
+		await expect.poll(() => lines(element).length, { timeout: 5000 }).toBe(0);
 		expect([...element.childNodes]).toEqual(authored);
 		expect(element.textContent).toBe('Every room has a story.');
 		expect(element.hasAttribute('aria-label')).toBe(false);
@@ -246,7 +268,7 @@ describe('displayEntrance', () => {
 		const element = mount('Every stay has a <em>story.</em><!---->', 'h1');
 		const [text, em, anchor] = [...element.childNodes];
 
-		attach(displayEntrance({ duration: 5, delay: 0 })(element));
+		attach(displayEntrance({ duration: HOLD, delay: 0 })(element));
 		await expect.poll(() => lines(element).length, { timeout: 5000 }).toBeGreaterThan(0);
 		// What an `{#if}` does: insert before its anchor comment, drop a branch.
 		const added = document.createElement('strong');
@@ -254,7 +276,7 @@ describe('displayEntrance', () => {
 		(anchor as Comment).before(added);
 		em.remove();
 
-		await expect.poll(() => lines(element).length, { timeout: 1000 }).toBe(0);
+		await expect.poll(() => lines(element).length, { timeout: 5000 }).toBe(0);
 		expect([...element.childNodes]).toEqual([text, added, anchor]);
 	});
 
@@ -274,7 +296,7 @@ describe('displayEntrance', () => {
 		const element = mount(headline, 'h1');
 		const authored = [...element.childNodes];
 
-		const teardown = attach(displayEntrance({ duration: 2, delay: 0 })(element));
+		const teardown = attach(displayEntrance({ duration: HOLD, delay: 0 })(element));
 		await expect.poll(() => lines(element).length, { timeout: 5000 }).toBeGreaterThan(0);
 
 		teardown();
@@ -291,7 +313,7 @@ describe('displayEntrance', () => {
 		);
 		for (const block of element.children) (block as HTMLElement).style.display = 'block';
 
-		attach(displayEntrance({ duration: 2, delay: 0 })(element));
+		attach(displayEntrance({ duration: HOLD, delay: 0 })(element));
 
 		await expect.poll(() => lines(element).length, { timeout: 5000 }).toBe(2);
 	});
@@ -302,7 +324,7 @@ describe('displayEntrance', () => {
 		const element = mount(headline, 'h2');
 		const before = ScrollTrigger.getAll().length;
 
-		attach(displayEntrance({ duration: 2, delay: 0, onScroll: true })(element));
+		attach(displayEntrance({ duration: HOLD, delay: 0, onScroll: true })(element));
 
 		await expect.poll(() => lines(element).length, { timeout: 5000 }).toBeGreaterThan(0);
 		expect(ScrollTrigger.getAll().length).toBe(before);
