@@ -24,6 +24,12 @@ export const property = pgTable(
 		shortDescription: text('short_description'),
 		/** Long-form copy. */
 		description: text('description'),
+		/**
+		 * The property's story (UST-15): a heading and long-form body. The body is raw markdown;
+		 * rendering and sanitising belong to the page layer (Phase 2). Null means "no story yet".
+		 */
+		storyHeading: text('story_heading'),
+		storyBody: text('story_body'),
 		/** ISO-4217 code. Every price on this property is minor units in this currency. */
 		currency: text('currency').notNull(),
 		/** IANA timezone name, e.g. `Asia/Kuala_Lumpur`. */
@@ -35,6 +41,8 @@ export const property = pgTable(
 	},
 	(t) => [
 		check('property_currency_check', sql`${t.currency} ~ '^[A-Z]{3}$'`),
+		check('property_story_heading_check', sql`${t.storyHeading} ~ '\\S'`),
+		check('property_story_body_check', sql`${t.storyBody} ~ '\\S'`),
 		index('property_owner_id_idx').on(t.ownerId),
 		index('property_status_idx').on(t.status)
 	]

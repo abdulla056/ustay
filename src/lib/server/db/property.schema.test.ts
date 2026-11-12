@@ -19,6 +19,8 @@ describe('property table shape', () => {
 			'tagline',
 			'short_description',
 			'description',
+			'story_heading',
+			'story_body',
 			'currency',
 			'timezone',
 			'owner_id',

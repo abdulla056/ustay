@@ -135,6 +135,11 @@ Two modes, and mixing them is what corrupts a shared database:
 Rules:
 
 - **Never** `db:push` against a shared or production database.
+- `db:push` cannot express the column-scoped `ON DELETE SET NULL (col)` hand-edited into the
+  media poster FK (`0003`) and the host avatar FK (`0004`): it creates a plain `SET NULL`, and
+  deleting a poster or avatar asset then tries to null `property_id` and fails. The migrations
+  are the source of truth for those FKs, so use `db:reset` (which applies them) or `db:migrate`
+  on any database where you delete assets.
 - Generated SQL is committed and, once merged, immutable. To fix a bad migration, add another.
 - Read the generated SQL before committing. `drizzle-kit` is configured with `strict: true`, so a
   rename it cannot tell from a drop/create will ask — a wrong answer here is data loss.
@@ -146,16 +151,31 @@ Rules:
 - `DATABASE_URL` must be set for any `db:*` command (`drizzle.config.ts` throws otherwise). Start
   the local database with `bun run db:start` (see `compose.yaml`); copy `.env.example` to `.env`.
 
+## Host and story (UST-15)
+
+- **`host_profile`** is 1:1 with `property`: `property_id` is the primary key and a cascading FK.
+  Columns: `display_name` (required, non-blank), `bio` (markdown, nullable, non-blank when
+  present), `avatar_asset_id`, `hosting_since` (year, `>= 1900`; the "not in the future" bound is
+  checked in `host.repo.ts`), `languages` (`text[]`, default empty).
+- **The avatar** is an `image` in the same property's library: composite FK
+  `(property_id, avatar_asset_id)` → `media_asset(property_id, id)` with the hand-edited
+  `ON DELETE SET NULL (avatar_asset_id)` (see `drizzle/0004_*`), so deleting the asset clears only
+  the avatar. "Is an image" is checked in `setHostAvatar`, with the asset row locked.
+- **The property story** is `property.story_heading` and `property.story_body`, both nullable and
+  non-blank when present (`setPropertyStory` in `property.repo.ts`).
+- **Markdown is stored raw** (`bio`, `story_body`). Rendering and sanitising are the page layer's
+  job (Phase 2); never trust or `{@html}` the stored text without sanitising it first.
+
 ## Seeding
 
 `bun run db:seed` and `bun run db:reset` (UST-10) are the harness for local/dev data. Phase 1
 adds the actual domain seed data (UST-20); this section is about the runner and conventions that
 data drops into.
 
-| Command            | What it does                                                                        |
-| ------------------ | ----------------------------------------------------------------------------------- |
-| `bun run db:seed`  | Runs every module in `seedModules` (`src/lib/server/db/seed/index.ts`). Idempotent. |
-| `bun run db:reset` | Drops + recreates the `public` schema, `db:push`, then `db:seed`. Destructive.      |
+| Command            | What it does                                                                                |
+| ------------------ | ------------------------------------------------------------------------------------------- |
+| `bun run db:seed`  | Runs every module in `seedModules` (`src/lib/server/db/seed/index.ts`). Idempotent.         |
+| `bun run db:reset` | Drops + recreates the `public` schema, applies the migrations, then `db:seed`. Destructive. |
 
 **Layout** — `src/lib/server/db/seed/`:
 

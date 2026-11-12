@@ -29,6 +29,13 @@
       "when": 1794415918654,
       "tag": "0003_past_thunderbird",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1794499468741,
+      "tag": "0004_supreme_scarlet_witch",
+      "breakpoints": true
     }
   ]
 }

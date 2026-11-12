@@ -7,6 +7,7 @@ import { and, eq } from 'drizzle-orm';
 import { db, type Executor } from '$lib/server/db';
 import { property, propertySlugRedirect } from '$lib/server/db/schema';
 import { uniqueSlug } from '$lib/server/db/slug';
+import { isUuid } from '$lib/server/db/helpers';
 
 /**
  * Input for {@link insertProperty}. The id, timestamps and slug are assigned here, so they are
@@ -47,8 +48,18 @@ export async function findPropertyBySlug(slug: string, tx: Executor = db) {
 	return row;
 }
 
-export async function findPropertyById(id: string, tx: Executor = db) {
-	const [row] = await tx.select().from(property).where(eq(property.id, id)).limit(1);
+/**
+ * `undefined` for an unknown or malformed id. `{ lock: true }` takes `FOR UPDATE` on the row, to
+ * serialise writes to the property's dependants; call it inside a transaction.
+ */
+export async function findPropertyById(
+	id: string,
+	tx: Executor = db,
+	opts: { lock?: boolean } = {}
+) {
+	if (!isUuid(id)) return undefined;
+	const query = tx.select().from(property).where(eq(property.id, id)).limit(1);
+	const [row] = await (opts.lock ? query.for('update') : query);
 	return row;
 }
 
@@ -113,5 +124,54 @@ export async function publishProperty(id: string, tx: Executor = db) {
 		.set({ status: 'published', publishedAt: new Date() })
 		.where(eq(property.id, id))
 		.returning();
+	return row;
+}
+
+/** Thrown when a property id is malformed or no such property exists. */
+export class PropertyNotFoundError extends Error {
+	constructor(readonly propertyId: string) {
+		super(`Property ${propertyId} not found`);
+		this.name = 'PropertyNotFoundError';
+	}
+}
+
+/** Thrown for story input of the wrong type. */
+export class PropertyValidationError extends Error {
+	constructor(message: string) {
+		super(message);
+		this.name = 'PropertyValidationError';
+	}
+}
+
+/** Trim a text field; blank becomes `null` (cleared). Non-strings are a typed error. */
+function cleanText(value: unknown, field: string): string | null {
+	if (value === null) return null;
+	if (typeof value !== 'string') throw new PropertyValidationError(`${field} must be a string`);
+	const trimmed = value.trim();
+	return trimmed === '' ? null : trimmed;
+}
+
+/**
+ * Set or clear the property's story (heading and markdown body, stored raw but trimmed). `null`
+ * or a blank string clears a field; `undefined` leaves it alone. Throws
+ * {@link PropertyNotFoundError} for an unknown or malformed id and
+ * {@link PropertyValidationError} for a non-string value.
+ */
+export async function setPropertyStory(
+	propertyId: string,
+	story: { heading?: string | null; body?: string | null },
+	tx: Executor = db
+) {
+	if (!isUuid(propertyId)) throw new PropertyNotFoundError(propertyId);
+	const patch: Partial<typeof property.$inferInsert> = {};
+	if (story.heading !== undefined) patch.storyHeading = cleanText(story.heading, 'heading');
+	if (story.body !== undefined) patch.storyBody = cleanText(story.body, 'body');
+	if (Object.keys(patch).length === 0) {
+		const row = await findPropertyById(propertyId, tx);
+		if (!row) throw new PropertyNotFoundError(propertyId);
+		return row;
+	}
+	const [row] = await tx.update(property).set(patch).where(eq(property.id, propertyId)).returning();
+	if (!row) throw new PropertyNotFoundError(propertyId);
 	return row;
 }

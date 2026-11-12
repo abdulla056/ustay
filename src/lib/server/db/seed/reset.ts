@@ -1,32 +1,23 @@
 /**
- * `bun run db:reset` — drop and recreate the local database, push the current schema, then
- * seed. The fast local loop (`docs/DATABASE.md`'s `db:push`) rebuilt from nothing, for whenever
- * the schema has drifted too far to want to hand-fix.
+ * `bun run db:reset` — drop and recreate the local database, apply the committed migrations,
+ * then seed. A local loop rebuilt from nothing, for whenever the database has drifted too far to
+ * want to hand-fix.
  *
  * Steps: drop + recreate the `public` schema (removes every table, including better-auth's) →
- * `drizzle-kit push --force` (recreates them from `src/lib/server/db/schema.ts`, no prompts) →
+ * drizzle's migrator (recreates them from `drizzle/`, so the hand-edited SQL is applied) →
  * `runSeed()` (this file's whole reason to import `./index` rather than re-shelling into
  * `bun run db:seed`).
  *
  * Guarded by `checkResetGuard`, which is stricter than `db:seed`'s: dropping a schema is
  * destructive, so `DATABASE_URL`'s hostname must be one `compose.yaml` could have produced.
  */
-import { spawnSync } from 'node:child_process';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { drizzle } from 'drizzle-orm/postgres-js';
+import { migrate } from 'drizzle-orm/postgres-js/migrator';
 import postgres from 'postgres';
 import { assertResetAllowed } from './guard';
 import { runSeed } from './index';
-
-function pushSchema(databaseUrl: string): void {
-	const result = spawnSync('bunx', ['drizzle-kit', 'push', '--force'], {
-		stdio: 'inherit',
-		env: { ...process.env, DATABASE_URL: databaseUrl }
-	});
-	if (result.status !== 0) {
-		throw new Error(`drizzle-kit push exited with code ${result.status ?? 'unknown'}`);
-	}
-}
 
 export async function runReset(): Promise<void> {
 	const databaseUrl = process.env.DATABASE_URL;
@@ -37,12 +28,14 @@ export async function runReset(): Promise<void> {
 		console.log('[reset] dropping schema "public"...');
 		await client.unsafe('DROP SCHEMA IF EXISTS public CASCADE');
 		await client.unsafe('CREATE SCHEMA public');
+		// Apply the committed migrations, not `drizzle-kit push`: push builds from the TypeScript
+		// schema and cannot express the column-scoped `ON DELETE SET NULL (col)` hand-edited into
+		// the media/host migrations, so a pushed database fails deleting an avatar or poster asset.
+		console.log('[reset] applying migrations...');
+		await migrate(drizzle(client), { migrationsFolder: 'drizzle' });
 	} finally {
 		await client.end();
 	}
-
-	console.log('[reset] pushing schema...');
-	pushSchema(databaseUrl!);
 
 	console.log('[reset] seeding...');
 	await runSeed();
