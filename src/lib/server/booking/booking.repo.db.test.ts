@@ -7,6 +7,7 @@ import { deleteRoom, insertRoom, updateRoom } from '$lib/server/property/room.re
 import {
 	acceptRequest,
 	addMessage,
+	BookingExpiredError,
 	BookingPropertyUnavailableError,
 	BookingRequestNotFoundError,
 	BookingRoomError,
@@ -28,7 +29,7 @@ import {
 } from './booking.repo';
 import { hashAccessToken } from './lifecycle';
 
-const NOW = new Date('2026-06-01T12:00:00Z');
+const NOW = new Date();
 const base = { type: 'boutique', currency: 'MYR', timezone: 'Asia/Kuala_Lumpur' } as const;
 
 async function makeProperty(name = 'Stay', opts: { publish?: boolean } = {}) {
@@ -37,7 +38,7 @@ async function makeProperty(name = 'Stay', opts: { publish?: boolean } = {}) {
 }
 
 const guest = { guestName: 'Ada Guest', guestEmail: 'ada@example.com' };
-const stay = { checkIn: '2026-07-10', checkOut: '2026-07-13', adults: 2 };
+const stay = { checkIn: '2099-07-10', checkOut: '2099-07-13', adults: 2 };
 
 async function makeBooking(propertyId: string, extra: Record<string, unknown> = {}) {
 	return createBookingRequest({ propertyId, ...guest, ...stay, now: NOW, ...extra });
@@ -61,8 +62,8 @@ function rawRow(propertyId: string, overrides: Record<string, unknown> = {}) {
 		propertyId,
 		reference: `UST-RAW${Math.random().toString(36).slice(2, 5).toUpperCase()}`,
 		kind: 'booking' as const,
-		checkIn: '2026-07-10',
-		checkOut: '2026-07-12',
+		checkIn: '2099-07-10',
+		checkOut: '2099-07-12',
 		adults: 2,
 		children: 0,
 		guestName: 'Raw',
@@ -86,12 +87,11 @@ describe('createBookingRequest', () => {
 			propertyId: p.id,
 			kind: 'booking',
 			status: 'pending',
-			checkIn: '2026-07-10',
-			checkOut: '2026-07-13',
+			checkIn: '2099-07-10',
+			checkOut: '2099-07-13',
 			adults: 2,
 			children: 0,
 			currency: 'MYR',
-			message: 'Late arrival',
 			roomId: null,
 			nightlyRateMinor: null,
 			estimatedTotalMinor: null
@@ -109,7 +109,6 @@ describe('createBookingRequest', () => {
 	it('writes no opening message when there is no note', async () => {
 		const p = await makeProperty();
 		const { request } = await makeBooking(p.id, { message: '   ' });
-		expect(request.message).toBeNull();
 		expect(await listMessages(request.id)).toEqual([]);
 	});
 
@@ -146,12 +145,12 @@ describe('createBookingRequest', () => {
 	it('validates the dates', async () => {
 		const p = await makeProperty();
 		const bad = [
-			{ checkIn: '2026-07-10', checkOut: '2026-07-10' },
-			{ checkIn: '2026-07-13', checkOut: '2026-07-10' },
+			{ checkIn: '2099-07-10', checkOut: '2099-07-10' },
+			{ checkIn: '2099-07-13', checkOut: '2099-07-10' },
 			{ checkIn: '2026-02-30', checkOut: '2026-03-02' },
-			{ checkIn: '10/07/2026', checkOut: '2026-07-12' },
-			{ checkIn: undefined, checkOut: '2026-07-12' },
-			{ checkIn: '2026-07-10', checkOut: 20260712 }
+			{ checkIn: '10/07/2026', checkOut: '2099-07-12' },
+			{ checkIn: undefined, checkOut: '2099-07-12' },
+			{ checkIn: '2099-07-10', checkOut: 20260712 }
 		];
 		for (const dates of bad) await expectInvalid(makeBooking(p.id, dates), BookingValidationError);
 	});
@@ -181,7 +180,7 @@ describe('createBookingRequest', () => {
 		for (const adults of [0, -1, 1.5, '2', null, undefined, 2 ** 31]) {
 			await expectInvalid(makeBooking(p.id, { adults }), BookingValidationError);
 		}
-		for (const children of [-1, 0.5, '1', null]) {
+		for (const children of [-1, 0.5, '1']) {
 			await expectInvalid(makeBooking(p.id, { children }), BookingValidationError);
 		}
 		const { request } = await makeBooking(p.id, { children: 2 });
@@ -253,10 +252,10 @@ describe('createBookingRequest', () => {
 			nightlyRateMinor: 2_000_000_000
 		});
 		await expectInvalid(
-			makeBooking(p.id, { roomId: r.id, checkIn: '2026-07-10', checkOut: '2026-07-12' }),
+			makeBooking(p.id, { roomId: r.id, checkIn: '2099-07-10', checkOut: '2099-07-12' }),
 			BookingValidationError
 		);
-		const { request } = await makeBooking(p.id, { checkOut: '2026-07-11' });
+		const { request } = await makeBooking(p.id, { checkOut: '2099-07-11' });
 		expect(request.currency).toBe('JPY');
 	});
 
@@ -325,7 +324,7 @@ describe('createQuestion', () => {
 		const { request } = await createQuestion({
 			propertyId: p.id,
 			...guest,
-			...({ checkIn: '2026-07-10', roomId: r.id, adults: 2 } as object)
+			...({ checkIn: '2099-07-10', roomId: r.id, adults: 2 } as object)
 		});
 		expect(request).toMatchObject({ checkIn: null, roomId: null, adults: null });
 	});
@@ -411,6 +410,9 @@ describe('lookups', () => {
 		expect(both.map((r) => r.id)).toEqual([b.id, a.id]);
 		expect(await listGuestRequests({})).toEqual([]);
 		await expectInvalid(listGuestRequests({ email: 'bad' }), BookingValidationError);
+		for (const userId of ['', 7, null, 'x'.repeat(129)]) {
+			await expectInvalid(listGuestRequests({ userId: userId as never }), BookingValidationError);
+		}
 	});
 });
 
@@ -573,6 +575,125 @@ describe('expireStaleRequests', () => {
 	});
 });
 
+describe('expiry at transition', () => {
+	const overdue = new Date(NOW.getTime() + REQUEST_TTL_MS + 1000);
+
+	it('an overdue pending booking cannot be accepted, declined or cancelled: it expires instead', async () => {
+		const p = await makeProperty();
+		const actions = [acceptRequest, declineRequest, cancelRequest];
+		for (const act of actions) {
+			const { id } = (await makeBooking(p.id, { message: 'Hi' })).request;
+			const error = await act(id, overdue).catch((e: unknown) => e);
+			expect(error).toBeInstanceOf(BookingExpiredError);
+			expect(error).toBeInstanceOf(BookingTransitionError);
+			// The expiry is committed even though the action threw.
+			const after = await findBookingRequestById(id);
+			expect(after).toMatchObject({ status: 'expired', respondedAt: null, cancelledAt: null });
+			expect((await listMessages(id)).map((m) => m.body)).toEqual([
+				'Hi',
+				'Request expired without a reply'
+			]);
+		}
+	});
+
+	it('the expiry instant is overdue, a moment before is not', async () => {
+		const p = await makeProperty();
+		const at = new Date(NOW.getTime() + REQUEST_TTL_MS);
+		const a = (await makeBooking(p.id)).request.id;
+		await expect(acceptRequest(a, new Date(at.getTime() - 1))).resolves.toMatchObject({
+			status: 'accepted'
+		});
+		const b = (await makeBooking(p.id)).request.id;
+		await expect(acceptRequest(b, at)).rejects.toBeInstanceOf(BookingExpiredError);
+	});
+
+	it('an accepted booking can still be cancelled after its original expiry', async () => {
+		const p = await makeProperty();
+		const { id } = (await makeBooking(p.id)).request;
+		await acceptRequest(id);
+		await expect(cancelRequest(id, overdue)).resolves.toMatchObject({ status: 'cancelled' });
+	});
+
+	it('a question never expires, and closing it after the window works', async () => {
+		const p = await makeProperty();
+		const { id } = (await createQuestion({ propertyId: p.id, ...guest, now: NOW })).request;
+		await expect(closeQuestion(id, overdue)).resolves.toMatchObject({ status: 'closed' });
+	});
+
+	it('uses the injected clock for responded_at and cancelled_at', async () => {
+		const p = await makeProperty();
+		const at = new Date(NOW.getTime() + 3600_000);
+		const { id } = (await makeBooking(p.id)).request;
+		const accepted = await acceptRequest(id, at);
+		expect(accepted.respondedAt?.getTime()).toBe(at.getTime());
+		const later = new Date(at.getTime() + 3600_000);
+		expect((await cancelRequest(id, later)).cancelledAt?.getTime()).toBe(later.getTime());
+	});
+
+	it('inside an outer transaction the expiry survives the throw and the outer work continues', async () => {
+		const p = await makeProperty();
+		const { id } = (await makeBooking(p.id)).request;
+		await db.transaction(async (outer) => {
+			await expect(acceptRequest(id, overdue, outer)).rejects.toBeInstanceOf(BookingExpiredError);
+			expect((await findBookingRequestById(id, outer))?.status).toBe('expired');
+		});
+		expect((await findBookingRequestById(id))?.status).toBe('expired');
+	});
+});
+
+describe('message order', () => {
+	it('lists the opening note, then a transition, in order when written in one outer transaction', async () => {
+		const p = await makeProperty();
+		const id = await db.transaction(async (outer) => {
+			const { request } = await createBookingRequest(
+				{ propertyId: p.id, ...guest, ...stay, message: 'Opening note', now: NOW },
+				outer
+			);
+			await acceptRequest(request.id, NOW, outer);
+			await addMessage(request.id, { sender: 'host', body: 'See you soon' }, outer);
+			await cancelRequest(request.id, NOW, outer);
+			return request.id;
+		});
+		expect((await listMessages(id)).map((m) => m.body)).toEqual([
+			'Opening note',
+			'Request accepted',
+			'See you soon',
+			'Request cancelled'
+		]);
+	});
+});
+
+describe('party size and children', () => {
+	it('rejects adults + children above the room capacity, accepts the limit', async () => {
+		const p = await makeProperty();
+		const r = await insertRoom({
+			propertyId: p.id,
+			name: 'Twin',
+			maxGuests: 3,
+			nightlyRateMinor: 100
+		});
+		await expectInvalid(
+			makeBooking(p.id, { roomId: r.id, adults: 2, children: 2 }),
+			BookingValidationError
+		);
+		await expectInvalid(makeBooking(p.id, { roomId: r.id, adults: 4 }), BookingValidationError);
+		const { request } = await makeBooking(p.id, { roomId: r.id, adults: 2, children: 1 });
+		expect(request.roomId).toBe(r.id);
+	});
+
+	it('does not cap the party when no room is chosen', async () => {
+		const p = await makeProperty();
+		const { request } = await makeBooking(p.id, { adults: 12, children: 4 });
+		expect(request.adults).toBe(12);
+	});
+
+	it('treats children null the same as undefined: zero', async () => {
+		const p = await makeProperty();
+		expect((await makeBooking(p.id, { children: null })).request.children).toBe(0);
+		expect((await makeBooking(p.id, { children: undefined })).request.children).toBe(0);
+	});
+});
+
 describe('messages', () => {
 	it('appends and lists oldest first, with an optional author account', async () => {
 		const p = await makeProperty();
@@ -692,8 +813,8 @@ describe('database CHECKs and constraints (raw inserts)', () => {
 		const bad = [
 			{ checkIn: null },
 			{ checkOut: null },
-			{ checkOut: '2026-07-10' },
-			{ checkOut: '2026-07-09' },
+			{ checkOut: '2099-07-10' },
+			{ checkOut: '2099-07-09' },
 			{ adults: null },
 			{ adults: 0 },
 			{ children: null },
@@ -719,8 +840,8 @@ describe('database CHECKs and constraints (raw inserts)', () => {
 		};
 		expect(await pgCode(db.insert(bookingRequest).values(rawRow(p.id, q)))).toBeUndefined();
 		for (const o of [
-			{ checkIn: '2026-07-10' },
-			{ checkOut: '2026-07-12' },
+			{ checkIn: '2099-07-10' },
+			{ checkOut: '2099-07-12' },
 			{ adults: 1 },
 			{ children: 0 },
 			{ nightlyRateMinor: 1, estimatedTotalMinor: 1 }
@@ -761,7 +882,6 @@ describe('database CHECKs and constraints (raw inserts)', () => {
 			{ guestName: '  ' },
 			{ guestEmail: 'Upper@Example.com' },
 			{ guestEmail: 'no-at-sign' },
-			{ message: '   ' },
 			{ currency: 'myr' },
 			{ currency: 'MYRR' },
 			{ nightlyRateMinor: 5 },

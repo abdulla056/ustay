@@ -241,7 +241,11 @@ Booking requests only (decision 3); guests need just an email (decision 4). Code
 - **The room** is a composite FK `(property_id, room_id)` -> `room(property_id, id)`, so it must
   belong to the same property, with the hand-edited `ON DELETE SET NULL (room_id)` (see
   `drizzle/0007_*`; `db:push` would make it a plain `SET NULL`). Deleting a room keeps the request
-  and its price snapshot.
+  and its price snapshot. With a room chosen, `adults + children` may not exceed the room's
+  `max_guests`; `children` null or absent means 0. **Postgres 15 or newer is required** for the
+  column-scoped `SET NULL` (also used by the media and host FKs): `compose.yaml` and CI pin
+  `postgres:17`. Creation takes `FOR SHARE` on the property row (so a concurrent archive waits),
+  not `FOR UPDATE`.
 - **The price is a snapshot** taken at creation, only for a booking with a room: the property's
   `currency`, the room's `nightly_rate_minor`, and `estimated_total_minor = rate x nights`
   (exact integer minor units, no rounding; overflow of an int4 is a typed error). A later rate
@@ -250,14 +254,21 @@ Booking requests only (decision 3); guests need just an email (decision 4). Code
   `pending` -> `accepted | declined | cancelled | expired`, and `accepted` -> `cancelled`; a
   question goes `pending` -> `closed`. Anything else throws `BookingTransitionError`.
   `responded_at` is set on accept/decline and `cancelled_at` on cancel. Each transition appends a
-  `system` message in the same transaction. `expires_at` is created + 72 hours (`REQUEST_TTL_MS`);
-  `expireStaleRequests` expires overdue pending **bookings** (never questions) in one UPDATE. It
-  needs a caller (a scheduled job, Phase 6): nothing runs it yet. An overdue request that has not
-  been swept can still be accepted.
+  `system` message in the same transaction. Every transition function takes an optional `now`
+  (before the executor) that drives the stamps and the expiry check.
+- **Expiry.** `expires_at` is created + 72 hours (`REQUEST_TTL_MS`). It is enforced at
+  transition time: inside the locked transition, a pending booking with `expires_at <= now` is
+  flipped to `expired` (with its system message), that is committed, and `BookingExpiredError` (a
+  `BookingTransitionError`) is thrown for the requested accept, decline or cancel. An accepted
+  booking is no longer subject to expiry. `expireStaleRequests` sweeps overdue pending
+  **bookings** (never questions) in one UPDATE; it still needs a caller (a scheduled job, Phase
+  6), but correctness does not depend on it.
 - **`booking_message`** is the append-only thread (no `updated_at`, no edits): `sender` is
   `guest | host | system`, `author_user_id` is null for a guest without an account, `body` is
-  non-blank. Cascades with the request. The guest's opening note is stored on the request and as
-  the first `guest` message.
+  non-blank. Cascades with the request. `created_at` defaults to `clock_timestamp()`, not
+  `now()`, so rows written in one transaction still order by insert. **The guest's opening note
+  exists only as the thread's first `guest` message**; there is no `message` column on the
+  request, so the inbox reads the note from the thread.
 - **Guest access token.** On create the repo draws 32 random bytes with
   `crypto.getRandomValues`, stores only the SHA-256 hex (`guest_access_token_hash`, unique), and
   returns the plain base64url token **once**, for the emailed link. It is never stored or logged;

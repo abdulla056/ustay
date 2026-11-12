@@ -7,7 +7,7 @@ CREATE TABLE "booking_message" (
 	"sender" "booking_message_sender" NOT NULL,
 	"author_user_id" text,
 	"body" text NOT NULL,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"created_at" timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
 	CONSTRAINT "booking_message_body_check" CHECK ("booking_message"."body" ~ '\S')
 );
 --> statement-breakpoint
@@ -25,7 +25,6 @@ CREATE TABLE "booking_request" (
 	"guest_email" text NOT NULL,
 	"guest_phone" text,
 	"guest_user_id" text,
-	"message" text,
 	"status" "booking_request_status" DEFAULT 'pending' NOT NULL,
 	"responded_at" timestamp with time zone,
 	"cancelled_at" timestamp with time zone,
@@ -55,7 +54,6 @@ CREATE TABLE "booking_request" (
 				OR ("booking_request"."kind" = 'question' AND "booking_request"."status" IN ('pending', 'closed'))),
 	CONSTRAINT "booking_request_guest_name_check" CHECK ("booking_request"."guest_name" ~ '\S'),
 	CONSTRAINT "booking_request_guest_email_check" CHECK ("booking_request"."guest_email" = lower("booking_request"."guest_email") AND "booking_request"."guest_email" LIKE '%@%'),
-	CONSTRAINT "booking_request_message_check" CHECK ("booking_request"."message" ~ '\S'),
 	CONSTRAINT "booking_request_currency_check" CHECK ("booking_request"."currency" ~ '^[A-Z]{3}$'),
 	CONSTRAINT "booking_request_price_check" CHECK (("booking_request"."nightly_rate_minor" IS NULL) = ("booking_request"."estimated_total_minor" IS NULL)
 				AND "booking_request"."nightly_rate_minor" >= 0 AND "booking_request"."estimated_total_minor" >= 0)

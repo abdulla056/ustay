@@ -5,7 +5,8 @@
  *
  * One table, `booking_request`, holds both kinds: a `booking` (dates, optional room, price
  * snapshot) and a `question` (a general enquiry, no dates and no room). Both share the guest
- * fields and a `booking_message` thread, and the owner's inbox treats them as one list.
+ * fields and a `booking_message` thread (its first `guest` message is the guest's opening note;
+ * there is no separate message column), and the owner's inbox treats them as one list.
  *
  * - `room_id` is a composite FK `(property_id, room_id)` -> `room(property_id, id)`: the room must
  *   belong to the same property. The migration hand-edits the action to
@@ -74,8 +75,6 @@ export const bookingRequest = pgTable(
 		guestEmail: text('guest_email').notNull(),
 		guestPhone: text('guest_phone'),
 		guestUserId: userRef('guest_user_id', 'set null'),
-		/** The guest's opening note (also written as the first `guest` message). */
-		message: text('message'),
 		status: bookingRequestStatus('status').notNull().default('pending'),
 		respondedAt: timestamp('responded_at', { withTimezone: true }),
 		cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
@@ -125,7 +124,6 @@ export const bookingRequest = pgTable(
 			'booking_request_guest_email_check',
 			sql`${t.guestEmail} = lower(${t.guestEmail}) AND ${t.guestEmail} LIKE '%@%'`
 		),
-		check('booking_request_message_check', sql`${t.message} ~ '\\S'`),
 		check('booking_request_currency_check', sql`${t.currency} ~ '^[A-Z]{3}$'`),
 		check(
 			'booking_request_price_check',
@@ -157,7 +155,10 @@ export const bookingMessage = pgTable(
 		/** Null for a guest without an account, and for `system` messages. */
 		authorUserId: userRef('author_user_id', 'set null'),
 		body: text('body').notNull(),
-		createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull()
+		// clock_timestamp(), not now(): rows written in one transaction must still order by insert.
+		createdAt: timestamp('created_at', { withTimezone: true })
+			.default(sql`clock_timestamp()`)
+			.notNull()
 	},
 	(t) => [
 		check('booking_message_body_check', sql`${t.body} ~ '\\S'`),

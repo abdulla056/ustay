@@ -60,7 +60,6 @@ describe('booking_request table shape', () => {
 			'children',
 			'guestPhone',
 			'guestUserId',
-			'message',
 			'respondedAt',
 			'cancelledAt',
 			'nightlyRateMinor',

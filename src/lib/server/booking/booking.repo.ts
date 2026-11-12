@@ -110,6 +110,22 @@ export class BookingTransitionError extends Error {
 	}
 }
 
+/**
+ * Thrown when a pending booking was already overdue: it has been marked `expired` (committed) and
+ * the requested action did not happen. A {@link BookingTransitionError}, so callers that catch
+ * that also catch this.
+ */
+export class BookingExpiredError extends BookingTransitionError {
+	constructor(
+		readonly requestId: string,
+		to: RequestStatus
+	) {
+		super('booking', 'pending', to);
+		this.message = `Booking request ${requestId} expired before it could be moved to ${to}`;
+		this.name = 'BookingExpiredError';
+	}
+}
+
 const fail: ErrorFactory = (m) => new BookingValidationError(m);
 
 /** Printable ASCII only, so JS and Postgres `lower()` agree and the DB CHECK never trips. */
@@ -147,7 +163,7 @@ export type GuestInput = {
 	guestPhone?: string | null;
 	/** The optional guest account (decision #4); must be an existing user. */
 	guestUserId?: string | null;
-	/** The guest's opening note; stored on the request and as the first `guest` message. */
+	/** The guest's opening note: stored only as the thread's first `guest` message. */
 	message?: string | null;
 	/** Test seam: the clock used for "not in the past" and the expiry. */
 	now?: Date;
@@ -173,7 +189,7 @@ export type CreatedRequest = {
 /** Validate the guest block and read the property: shared by bookings and questions. */
 async function prepareGuest(input: GuestInput, tx: Executor) {
 	const raw = input as Record<string, unknown>;
-	const property = await findPropertyById(String(raw.propertyId), tx, { lock: true });
+	const property = await findPropertyById(String(raw.propertyId), tx, { lock: 'share' });
 	if (!property || property.status !== 'published') {
 		throw new BookingPropertyUnavailableError(String(raw.propertyId));
 	}
@@ -191,9 +207,9 @@ async function prepareGuest(input: GuestInput, tx: Executor) {
 			guestName: boundedText(raw.guestName, 'guestName', MAX_NAME_LENGTH),
 			guestEmail: normaliseEmail(raw.guestEmail),
 			guestPhone: optionalBoundedText(raw.guestPhone, 'guestPhone', MAX_PHONE_LENGTH),
-			guestUserId: guestUserId as string | null,
-			message: optionalBoundedText(raw.message, 'message', MAX_MESSAGE_LENGTH)
-		}
+			guestUserId: guestUserId as string | null
+		},
+		openingNote: optionalBoundedText(raw.message, 'message', MAX_MESSAGE_LENGTH)
 	};
 }
 
@@ -211,6 +227,7 @@ async function insertRequest(
 		typeof bookingRequest.$inferInsert,
 		'reference' | 'guestAccessTokenHash' | 'expiresAt'
 	>,
+	openingNote: string | null,
 	now: Date,
 	tx: Executor
 ): Promise<CreatedRequest> {
@@ -224,12 +241,12 @@ async function insertRequest(
 			.onConflictDoNothing({ target: bookingRequest.reference })
 			.returning(publicColumns);
 		if (!row) continue;
-		if (row.message !== null) {
+		if (openingNote !== null) {
 			await tx.insert(bookingMessage).values({
 				bookingRequestId: row.id,
 				sender: 'guest',
 				authorUserId: row.guestUserId,
-				body: row.message
+				body: openingNote
 			});
 		}
 		return { request: row, accessToken };
@@ -251,7 +268,7 @@ export async function createBookingRequest(
 ): Promise<CreatedRequest> {
 	return tx.transaction(async (inner) => {
 		const raw = input as Record<string, unknown>;
-		const { property, now, guest } = await prepareGuest(input, inner);
+		const { property, now, guest, openingNote } = await prepareGuest(input, inner);
 
 		if (!isCalendarDate(raw.checkIn) || !isCalendarDate(raw.checkOut)) {
 			throw new BookingValidationError('checkIn and checkOut must be YYYY-MM-DD dates');
@@ -267,8 +284,11 @@ export async function createBookingRequest(
 			);
 		}
 		const adults = positiveInt(raw.adults, 'adults', fail);
+		// Absent or null children means none.
 		const children =
-			raw.children === undefined ? 0 : nonNegativeInt(raw.children, 'children', fail);
+			raw.children === undefined || raw.children === null
+				? 0
+				: nonNegativeInt(raw.children, 'children', fail);
 
 		let roomId: string | null = null;
 		let nightlyRateMinor: number | null = null;
@@ -277,12 +297,19 @@ export async function createBookingRequest(
 			const wanted = String(raw.roomId);
 			const [found] = isUuid(wanted)
 				? await inner
-						.select({ id: room.id, nightlyRateMinor: room.nightlyRateMinor })
+						.select({
+							id: room.id,
+							nightlyRateMinor: room.nightlyRateMinor,
+							maxGuests: room.maxGuests
+						})
 						.from(room)
 						.where(and(eq(room.id, wanted), eq(room.propertyId, property.id)))
 						.limit(1)
 				: [];
 			if (!found) throw new BookingRoomError(wanted, property.id);
+			if (adults + children > found.maxGuests) {
+				throw new BookingValidationError(`The room sleeps at most ${found.maxGuests} guests`);
+			}
 			roomId = found.id;
 			nightlyRateMinor = found.nightlyRateMinor;
 			estimatedTotalMinor = nightlyRateMinor * nightsBetween(checkIn, checkOut);
@@ -305,6 +332,7 @@ export async function createBookingRequest(
 				nightlyRateMinor,
 				estimatedTotalMinor
 			},
+			openingNote,
 			now,
 			inner
 		);
@@ -317,9 +345,10 @@ export async function createQuestion(
 	tx: Executor = db
 ): Promise<CreatedRequest> {
 	return tx.transaction(async (inner) => {
-		const { property, now, guest } = await prepareGuest(input, inner);
+		const { property, now, guest, openingNote } = await prepareGuest(input, inner);
 		return insertRequest(
 			{ propertyId: property.id, kind: 'question', ...guest, currency: property.currency },
+			openingNote,
 			now,
 			inner
 		);
@@ -406,7 +435,12 @@ export async function listGuestRequests(
 	const matches: SQL[] = [];
 	if (who.email !== undefined)
 		matches.push(eq(bookingRequest.guestEmail, normaliseEmail(who.email)));
-	if (who.userId !== undefined && isUuidLike(who.userId)) {
+	if (who.userId !== undefined) {
+		if (!isPlausibleUserId(who.userId)) {
+			throw new BookingValidationError(
+				'userId must be a non-empty string of at most 128 characters'
+			);
+		}
 		matches.push(eq(bookingRequest.guestUserId, who.userId));
 	}
 	if (matches.length === 0) return [];
@@ -418,7 +452,7 @@ export async function listGuestRequests(
 }
 
 /** Auth user ids are better-auth text, not uuids: only check it is a sane string. */
-const isUuidLike = (value: unknown): value is string =>
+const isPlausibleUserId = (value: unknown): value is string =>
 	typeof value === 'string' && value.length > 0 && value.length <= 128;
 
 /** The system message each transition appends. */
@@ -432,17 +466,29 @@ const SYSTEM_MESSAGE: Partial<Record<RequestStatus, string>> = {
 
 /**
  * Move a request to `to`: lock the row, check the lifecycle, stamp `responded_at` /
- * `cancelled_at`, and append the system message, all in one transaction.
+ * `cancelled_at`, and append the system message, all in one transaction. `now` drives both the
+ * stamps and the expiry check.
+ *
+ * A pending booking whose `expires_at` has passed cannot be acted on: it is flipped to `expired`
+ * (with its system message) and that is committed, then {@link BookingExpiredError} is thrown for
+ * the requested action.
  */
 async function transition(
 	requestId: string,
 	to: RequestStatus,
+	now: Date,
 	tx: Executor
 ): Promise<BookingRequest> {
 	if (!isUuid(requestId)) throw new BookingRequestNotFoundError(String(requestId));
-	return tx.transaction(async (inner) => {
+	const at = now instanceof Date && !Number.isNaN(now.getTime()) ? now : new Date();
+	const result = await tx.transaction(async (inner) => {
 		const [current] = await inner
-			.select({ id: bookingRequest.id, kind: bookingRequest.kind, status: bookingRequest.status })
+			.select({
+				id: bookingRequest.id,
+				kind: bookingRequest.kind,
+				status: bookingRequest.status,
+				expiresAt: bookingRequest.expiresAt
+			})
 			.from(bookingRequest)
 			.where(eq(bookingRequest.id, requestId))
 			.for('update')
@@ -451,7 +497,16 @@ async function transition(
 		if (!canTransition(current.kind, current.status, to)) {
 			throw new BookingTransitionError(current.kind, current.status, to);
 		}
-		const at = new Date();
+		if (current.kind === 'booking' && current.status === 'pending' && current.expiresAt <= at) {
+			await inner
+				.update(bookingRequest)
+				.set({ status: 'expired' })
+				.where(eq(bookingRequest.id, requestId));
+			await inner
+				.insert(bookingMessage)
+				.values({ bookingRequestId: requestId, sender: 'system', body: SYSTEM_MESSAGE.expired! });
+			return { expired: true as const, kind: current.kind };
+		}
 		const [row] = await inner
 			.update(bookingRequest)
 			.set({
@@ -464,25 +519,28 @@ async function transition(
 		await inner
 			.insert(bookingMessage)
 			.values({ bookingRequestId: requestId, sender: 'system', body: SYSTEM_MESSAGE[to]! });
-		return row;
+		return { expired: false as const, row };
 	});
+	// Thrown after the transaction so the expiry above is committed, not rolled back with it.
+	if (result.expired) throw new BookingExpiredError(requestId, to);
+	return result.row;
 }
 
 /** pending -> accepted (booking). Throws {@link BookingTransitionError} otherwise. */
-export const acceptRequest = (requestId: string, tx: Executor = db) =>
-	transition(requestId, 'accepted', tx);
+export const acceptRequest = (requestId: string, now = new Date(), tx: Executor = db) =>
+	transition(requestId, 'accepted', now, tx);
 
 /** pending -> declined (booking). */
-export const declineRequest = (requestId: string, tx: Executor = db) =>
-	transition(requestId, 'declined', tx);
+export const declineRequest = (requestId: string, now = new Date(), tx: Executor = db) =>
+	transition(requestId, 'declined', now, tx);
 
 /** pending or accepted -> cancelled (booking). */
-export const cancelRequest = (requestId: string, tx: Executor = db) =>
-	transition(requestId, 'cancelled', tx);
+export const cancelRequest = (requestId: string, now = new Date(), tx: Executor = db) =>
+	transition(requestId, 'cancelled', now, tx);
 
 /** pending -> closed (question). */
-export const closeQuestion = (requestId: string, tx: Executor = db) =>
-	transition(requestId, 'closed', tx);
+export const closeQuestion = (requestId: string, now = new Date(), tx: Executor = db) =>
+	transition(requestId, 'closed', now, tx);
 
 /**
  * Expire every `pending` booking whose `expires_at` has passed, in one UPDATE, and append a system
