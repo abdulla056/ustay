@@ -58,7 +58,8 @@ export class MediaPosterError extends Error {
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 /** Postgres rejects a malformed uuid with a 500-grade error; check the shape before querying. */
-const isUuid = (value: unknown): value is string => typeof value === 'string' && UUID.test(value);
+export const isUuid = (value: unknown): value is string =>
+	typeof value === 'string' && UUID.test(value);
 
 /** Every asset column, listed so a new column is a deliberate addition to placement payloads. */
 const assetColumns = {

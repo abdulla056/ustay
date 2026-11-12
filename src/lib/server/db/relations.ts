@@ -8,6 +8,7 @@
 import { relations } from 'drizzle-orm';
 import { user } from './auth.schema';
 import { amenity, propertyAmenity, roomAmenity } from './amenity.schema';
+import { hostProfile } from './host.schema';
 import { mediaAsset, propertyMedia, roomMedia } from './media.schema';
 import { property, propertySlugRedirect } from './property.schema';
 import { room } from './room.schema';
@@ -18,7 +19,13 @@ export const propertyRelations = relations(property, ({ one, many }) => ({
 	rooms: many(room),
 	amenities: many(propertyAmenity),
 	mediaAssets: many(mediaAsset),
-	media: many(propertyMedia)
+	media: many(propertyMedia),
+	hostProfile: one(hostProfile)
+}));
+
+export const hostProfileRelations = relations(hostProfile, ({ one }) => ({
+	property: one(property, { fields: [hostProfile.propertyId], references: [property.id] }),
+	avatar: one(mediaAsset, { fields: [hostProfile.avatarAssetId], references: [mediaAsset.id] })
 }));
 
 export const propertySlugRedirectRelations = relations(propertySlugRedirect, ({ one }) => ({

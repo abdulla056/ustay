@@ -146,6 +146,21 @@ Rules:
 - `DATABASE_URL` must be set for any `db:*` command (`drizzle.config.ts` throws otherwise). Start
   the local database with `bun run db:start` (see `compose.yaml`); copy `.env.example` to `.env`.
 
+## Host and story (UST-15)
+
+- **`host_profile`** is 1:1 with `property`: `property_id` is the primary key and a cascading FK.
+  Columns: `display_name` (required, non-blank), `bio` (markdown, nullable, non-blank when
+  present), `avatar_asset_id`, `hosting_since` (year, `>= 1900`; the "not in the future" bound is
+  checked in `host.repo.ts`), `languages` (`text[]`, default empty).
+- **The avatar** is an `image` in the same property's library: composite FK
+  `(property_id, avatar_asset_id)` → `media_asset(property_id, id)` with the hand-edited
+  `ON DELETE SET NULL (avatar_asset_id)` (see `drizzle/0004_*`), so deleting the asset clears only
+  the avatar. "Is an image" is checked in `setHostAvatar`, with the asset row locked.
+- **The property story** is `property.story_heading` and `property.story_body`, both nullable and
+  non-blank when present (`setPropertyStory` in `property.repo.ts`).
+- **Markdown is stored raw** (`bio`, `story_body`). Rendering and sanitising are the page layer's
+  job (Phase 2); never trust or `{@html}` the stored text without sanitising it first.
+
 ## Seeding
 
 `bun run db:seed` and `bun run db:reset` (UST-10) are the harness for local/dev data. Phase 1

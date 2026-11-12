@@ -7,6 +7,7 @@ import { and, eq } from 'drizzle-orm';
 import { db, type Executor } from '$lib/server/db';
 import { property, propertySlugRedirect } from '$lib/server/db/schema';
 import { uniqueSlug } from '$lib/server/db/slug';
+import { isUuid } from './media.repo';
 
 /**
  * Input for {@link insertProperty}. The id, timestamps and slug are assigned here, so they are
@@ -113,5 +114,37 @@ export async function publishProperty(id: string, tx: Executor = db) {
 		.set({ status: 'published', publishedAt: new Date() })
 		.where(eq(property.id, id))
 		.returning();
+	return row;
+}
+
+/** Thrown when a property id is malformed or no such property exists. */
+export class PropertyNotFoundError extends Error {
+	constructor(readonly propertyId: string) {
+		super(`Property ${propertyId} not found`);
+		this.name = 'PropertyNotFoundError';
+	}
+}
+
+/**
+ * Set or clear the property's story (heading and markdown body, stored raw). `null` clears a
+ * field; `undefined` leaves it alone. Throws {@link PropertyNotFoundError} for an unknown or
+ * malformed id. A present value must not be blank (a database check).
+ */
+export async function setPropertyStory(
+	propertyId: string,
+	story: { heading?: string | null; body?: string | null },
+	tx: Executor = db
+) {
+	if (!isUuid(propertyId)) throw new PropertyNotFoundError(propertyId);
+	const patch: Partial<typeof property.$inferInsert> = {};
+	if (story.heading !== undefined) patch.storyHeading = story.heading;
+	if (story.body !== undefined) patch.storyBody = story.body;
+	if (Object.keys(patch).length === 0) {
+		const row = await findPropertyById(propertyId, tx);
+		if (!row) throw new PropertyNotFoundError(propertyId);
+		return row;
+	}
+	const [row] = await tx.update(property).set(patch).where(eq(property.id, propertyId)).returning();
+	if (!row) throw new PropertyNotFoundError(propertyId);
 	return row;
 }
