@@ -22,6 +22,13 @@
       "when": 1794411056340,
       "tag": "0002_jittery_stepford_cuckoos",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1794415918654,
+      "tag": "0003_past_thunderbird",
+      "breakpoints": true
     }
   ]
 }
