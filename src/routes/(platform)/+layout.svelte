@@ -20,6 +20,10 @@
 	import { afterNavigate } from '$app/navigation';
 	import { Footer, Nav, type FooterLinkGroup } from '$lib';
 	import { refreshMotion, reveal, smoothScroll } from '$lib/motion';
+	// Lenis's own stylesheet: `lenis-stopped` clips the root while the scroller is
+	// stopped (the mobile menu's scroll lock), and `data-lenis-prevent` regions get
+	// `overscroll-behavior: contain`. Here because this is where Lenis is mounted.
+	import 'lenis/dist/lenis.css';
 
 	const { children } = $props();
 
@@ -87,7 +91,10 @@
 	     rest of the page. One restrained reveal, staggered across its three rows and
 	     triggered by the footer's own top edge, so even the last row — which can never
 	     scroll above the fold line — is guaranteed to play. -->
+	<!-- `site-footer` is the mobile nav's no-JS fallback: before hydration the `Menu`
+	     toggle is a plain link here, where the footer index carries the site's links. -->
 	<Footer
+		id="site-footer"
 		tagline="Independent stays, beautifully told."
 		groups={footerGroups}
 		legal={footerLegal}

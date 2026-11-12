@@ -33,8 +33,11 @@
 	The `<main>` is also the skip link's target — the link is only real if it lands
 	somewhere.
 -->
-{#snippet frame(dark: boolean, nav: Snippet)}
-	<div data-tone={dark ? 'inverse' : 'light'} class="relative h-96 transform-gpu overflow-hidden">
+{#snippet frame(dark: boolean, nav: Snippet, tall = false)}
+	<div
+		data-tone={dark ? 'inverse' : 'light'}
+		class={['relative transform-gpu overflow-hidden', tall ? 'h-[44rem]' : 'h-96']}
+	>
 		{#if dark}
 			<img
 				src="/prototype/sun-trees.jpg"
@@ -105,12 +108,36 @@
 </Story>
 
 <!--
-	The mobile state, and the microsite state: below `md` the links collapse away and the
-	mark plus the single `Reserve` pill carry the bar. A full menu system is future work.
+	The microsite state: with no links there is nothing to put in a menu, so at every
+	width the mark plus the single `Reserve` pill carry the bar.
 -->
 <Story name="Wordmark and CTA only" args={{ links: [] }}>
 	{#snippet template(args)}
 		{#snippet nav()}<Nav {...args} />{/snippet}
 		{@render frame(true, nav)}
+	{/snippet}
+</Story>
+
+<!--
+	The mobile menu, open (UST-60). Below `md` the links move behind `Menu`, which opens
+	a full-screen modal in the ink tone whatever the page tone is — shown here from the
+	paper tone so the switch is visible. The panel wipes down over the bar, then the
+	numbered display-type lines rise out of their masks one after another; under reduced
+	motion it is a short fade and nothing travels.
+
+	The play function opens it, so the a11y check runs against the open dialog. Pinned to
+	a phone viewport, since the toggle does not exist at desktop widths.
+-->
+<Story
+	name="Mobile menu (open)"
+	args={{ tone: 'light' }}
+	globals={{ viewport: { value: 'mobile2', isRotated: false } }}
+	play={async ({ canvas, userEvent }) => {
+		await userEvent.click(canvas.getByRole('button', { name: 'Open menu' }));
+	}}
+>
+	{#snippet template(args)}
+		{#snippet nav()}<Nav {...args} />{/snippet}
+		{@render frame(false, nav, true)}
 	{/snippet}
 </Story>
