@@ -51,7 +51,7 @@ export default defineConfig({
 
 			typescript: {
 				config: (config) => {
-					config.include.push('../drizzle.config.ts');
+					config.include.push('../drizzle.config.ts', '../playwright.config.ts', '../e2e/**/*.ts');
 				}
 			}
 		})

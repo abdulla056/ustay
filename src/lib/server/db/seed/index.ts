@@ -13,6 +13,7 @@ import { pathToFileURL } from 'node:url';
 import { assertSeedAllowed } from './guard';
 import { createSeedAuth, createSeedDb, type SeedAuth, type SeedDb } from './client';
 import { seedDevUser, type SeedModuleResult } from './dev-user';
+import { seedAmenities } from './amenities';
 
 export type SeedContext = { readonly db: SeedDb; readonly auth: SeedAuth };
 
@@ -22,7 +23,8 @@ export type SeedModule = {
 };
 
 export const seedModules: readonly SeedModule[] = [
-	{ name: 'dev-user', run: (ctx) => seedDevUser(ctx.db, ctx.auth) }
+	{ name: 'dev-user', run: (ctx) => seedDevUser(ctx.db, ctx.auth) },
+	{ name: 'amenities', run: (ctx) => seedAmenities(ctx.db) }
 ];
 
 export async function runSeed(): Promise<void> {

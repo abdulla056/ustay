@@ -125,8 +125,7 @@
 		>
 			<Eyebrow class="mb-6 opacity-90">Independent stays, beautifully told</Eyebrow>
 			<Heading level={1} size="xl" tone="content" bleed {@attach displayEntrance()}>
-				<span class="block"><span class="block">Every stay</span></span>
-				<span class="block"><span class="block">has a <em>story.</em></span></span>
+				Every stay<br />has a <em>story.</em>
 			</Heading>
 			<Stack
 				direction="row"
@@ -248,7 +247,7 @@
 	<Section tone="inherit" space="lg" class="text-center">
 		<Container size="content">
 			<Heading size="lg" tone="content" {@attach displayEntrance({ onScroll: true })}>
-				<span class="block"><span class="block">Find your <em>story.</em></span></span>
+				Find your <em>story.</em>
 			</Heading>
 			<div class="mt-10" {@attach reveal({ delay: 0.2 })}>
 				<Button variant="outline">Browse every stay ↗</Button>

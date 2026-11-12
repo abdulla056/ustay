@@ -23,6 +23,7 @@ import { EDITORIAL_EASE, FALLBACK_EASE, REDUCED_MOTION_QUERY } from './config';
 type GsapStatic = typeof import('gsap').gsap;
 type ScrollTriggerStatic = typeof import('gsap/ScrollTrigger').ScrollTrigger;
 type CustomEaseStatic = typeof import('gsap/CustomEase').CustomEase;
+export type SplitTextStatic = typeof import('gsap/SplitText').SplitText;
 type GsapContext = ReturnType<GsapStatic['context']>;
 
 /** GSAP handed to a utility's setup function, plugins already registered. */
@@ -60,6 +61,40 @@ export function loadMotion(): Promise<MotionApi> {
 		return resolved;
 	})();
 	return api;
+}
+
+let splitText: Promise<SplitTextStatic> | undefined;
+
+/**
+ * Loads GSAP's `SplitText` once per session. Kept out of `loadMotion` because
+ * only `displayEntrance` needs it — a page with no display type never fetches it.
+ */
+export function loadSplitText(): Promise<SplitTextStatic> {
+	// Fetched alongside GSAP rather than after it — no extra round trip.
+	splitText ??= Promise.all([loadMotion(), import('gsap/SplitText')]).then(
+		([{ gsap }, { SplitText }]) => {
+			gsap.registerPlugin(SplitText);
+			return SplitText;
+		}
+	);
+	return splitText;
+}
+
+/**
+ * Resolves once the page's web fonts have settled — or after `timeout` ms,
+ * whichever is first. Anything that measures type (line splitting) must wait
+ * for this, or it measures the fallback face and breaks lines in the wrong
+ * places. The cap is short because the hero headline is the page's LCP
+ * element: a slow font must not hold it hidden. A font that lands after the
+ * cap is still handled — `SplitText`'s `autoSplit` re-measures on it.
+ */
+export function fontsReady(timeout = 1200): Promise<void> {
+	if (!browser || !document.fonts) return Promise.resolve();
+	let timer: ReturnType<typeof setTimeout> | undefined;
+	return Promise.race([
+		document.fonts.ready.then(() => undefined),
+		new Promise<void>((resolve) => (timer = setTimeout(resolve, timeout)))
+	]).finally(() => clearTimeout(timer));
 }
 
 /**
@@ -144,10 +179,19 @@ export function motionGate(
 	};
 }
 
-/** Builds the animation for an element, inside a scoped `gsap.context`. */
-export type MotionSetup<T extends Element> = (el: T, api: MotionApi, reduced: boolean) => void;
+/**
+ * Builds the animation for an element, inside a scoped `gsap.context`. A
+ * returned function is registered as the context's cleanup and runs when the
+ * motion is torn down, after GSAP has reverted everything it created.
+ */
+export type MotionSetup<T extends Element, R = undefined> = (
+	el: T,
+	api: MotionApi,
+	reduced: boolean,
+	prepared: R
+) => (() => void) | void;
 
-export type MotionAttachmentOptions<T extends Element> = {
+export type MotionAttachmentOptions<T extends Element, R = undefined> = {
 	/**
 	 * Writes the animation's start styles synchronously, before GSAP loads, and
 	 * returns a function restoring the untouched element. Skipped entirely under
@@ -156,6 +200,12 @@ export type MotionAttachmentOptions<T extends Element> = {
 	prime?: (el: T) => () => void;
 	/** See `motionGate`'s `always`. */
 	always?: boolean;
+	/**
+	 * Extra async work to finish before `setup` runs (a plugin, web fonts). Its
+	 * result is handed to `setup` as `prepared`. Fails the same way a GSAP load
+	 * failure does: the element is unprimed and left static.
+	 */
+	prepare?: (el: T) => Promise<R>;
 };
 
 /**
@@ -165,11 +215,11 @@ export type MotionAttachmentOptions<T extends Element> = {
  * props can be animated from the outside — `{@attach imageReveal()}` on
  * `<Image>` lands on the inner `<img>`, which is exactly the handle we want.
  */
-export function motionAttachment<T extends Element>(
-	setup: MotionSetup<T>,
-	options: MotionAttachmentOptions<T> = {}
+export function motionAttachment<T extends Element, R = undefined>(
+	setup: MotionSetup<T, R>,
+	options: MotionAttachmentOptions<T, R> = {}
 ): Attachment<T> {
-	const { prime, always = false } = options;
+	const { prime, always = false, prepare } = options;
 
 	return (element) =>
 		motionGate((reduced) => {
@@ -177,15 +227,21 @@ export function motionAttachment<T extends Element>(
 			let context: GsapContext | undefined;
 			let cancelled = false;
 
-			void loadMotion().then(
-				(loaded) => {
+			void Promise.all([loadMotion(), prepare?.(element)]).then(
+				([loaded, prepared]) => {
 					if (cancelled) return;
-					context = loaded.gsap.context(() => setup(element, loaded, reduced), element);
+					context = loaded.gsap.context(
+						() => setup(element, loaded, reduced, prepared as R),
+						element
+					);
 				},
 				(error: unknown) => {
 					// Never leave primed content stranded in its hidden start state.
 					unprime?.();
-					console.error('[motion] GSAP failed to load; motion is off for this element', error);
+					console.error(
+						'[motion] GSAP (or a plugin) failed to load; motion is off for this element',
+						error
+					);
 				}
 			);
 

@@ -78,8 +78,7 @@
 	<div class="relative">
 		<Eyebrow class="mb-6 opacity-90">Independent stays, beautifully told</Eyebrow>
 		<Heading level={1} size="xl" tone="inherit" bleed {@attach displayEntrance()}>
-			<span class="block"><span class="block">Every stay</span></span>
-			<span class="block"><span class="block">has a <em>story.</em></span></span>
+			Every stay<br />has a <em>story.</em>
 		</Heading>
 		<Stack
 			direction="row"
