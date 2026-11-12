@@ -60,6 +60,10 @@ export function loadMotion(): Promise<MotionApi> {
 		resolved = { gsap, ScrollTrigger };
 		return resolved;
 	})();
+	// A failed load must not be cached forever: the next activation retries.
+	api.catch(() => {
+		api = undefined;
+	});
 	return api;
 }
 

@@ -27,8 +27,6 @@
 
 	// Nav flips from light (over the dark hero) to ink (over light sections) on scroll.
 	let light = $state(false);
-	// Enables the sticky zoom-parallax; without JS / with reduced-motion a static gallery shows.
-	let animated = $state(false);
 
 	// Prototype for UST-38 — Ustay art direction: editorial serif luxury, cinematic
 	// photography, a dark hero that tonally opens into light editorial sections on scroll,
@@ -42,7 +40,6 @@
 		let lenis: Lenis | undefined;
 		const ctx = gsap.context(() => {
 			if (reduce) return; // reduced motion: leave everything in its final, visible state
-			animated = true;
 
 			lenis = new Lenis({ lerp: 0.085, wheelMultiplier: 0.9 });
 			lenis.on('scroll', ScrollTrigger.update);
@@ -137,7 +134,7 @@
 
 <div class="bg"></div>
 
-<div class="page" class:is-animated={animated} {@attach motion}>
+<div class="page" {@attach motion}>
 	<nav class="nav" class:is-light={light}>
 		<span class="nav__mark">Ustay</span>
 		<ul class="nav__links">
