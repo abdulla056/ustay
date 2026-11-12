@@ -2,6 +2,28 @@
 	import gsap from 'gsap';
 	import { ScrollTrigger } from 'gsap/ScrollTrigger';
 	import Lenis from 'lenis';
+	import ZoomGallery from '$lib/features/gallery/ZoomGallery.svelte';
+	import type { GalleryFrame } from '$lib/features/gallery/types';
+
+	const galleryFrames: GalleryFrame[] = [
+		{ src: '/prototype/hero-forest.jpg', alt: 'Forest cabin in mist', width: 2400, height: 1430 },
+		{ src: '/prototype/lake-mountain.jpg', alt: 'Mountain lake', width: 2400, height: 1600 },
+		{ src: '/prototype/misty-lake.jpg', alt: 'Misty lake at dawn', width: 2400, height: 1802 },
+		{
+			src: '/prototype/forest-light.jpg',
+			alt: 'Light through the forest',
+			width: 2400,
+			height: 1598
+		},
+		{ src: '/prototype/sun-trees.jpg', alt: 'Sun through trees', width: 2400, height: 3600 },
+		{ src: '/prototype/foggy-forest.jpg', alt: 'Foggy forest', width: 2400, height: 1600 },
+		{
+			src: '/prototype/lake-mountain.jpg',
+			alt: 'Mountain lake reflection',
+			width: 2400,
+			height: 1600
+		}
+	];
 
 	// Nav flips from light (over the dark hero) to ink (over light sections) on scroll.
 	let light = $state(false);
@@ -80,26 +102,6 @@
 					ease: 'power3.out',
 					scrollTrigger: { trigger: el, start: 'top 82%' }
 				});
-			});
-
-			// Zoom parallax (ported from the framer-motion zoom-parallax): the center image
-			// expands to fill the screen while the others scale up and spread out of frame.
-			const zoomScales = [4, 5, 6, 5, 6, 8, 9];
-			gsap.utils.toArray<HTMLElement>('.zoomp__item').forEach((el, i) => {
-				gsap.fromTo(
-					el,
-					{ scale: 1 },
-					{
-						scale: zoomScales[i],
-						ease: 'none',
-						scrollTrigger: {
-							trigger: '.zoomp',
-							start: 'top top',
-							end: 'bottom bottom',
-							scrub: true
-						}
-					}
-				);
 			});
 
 			// Featured cards: soft parallax on their imagery
@@ -184,45 +186,8 @@
 			</p>
 		</div>
 	</section>
-
-	<!-- ZOOM PARALLAX — center image expands to fill as the others spread out -->
-	<section class="zoomp" aria-label="A few frames">
-		<div class="zoomp__stage">
-			<div class="zoomp__item zoomp__item--1">
-				<div class="zoomp__frame">
-					<img src="/prototype/hero-forest.jpg" alt="Forest cabin in mist" />
-				</div>
-			</div>
-			<div class="zoomp__item zoomp__item--2">
-				<div class="zoomp__frame">
-					<img src="/prototype/lake-mountain.jpg" alt="Mountain lake" />
-				</div>
-			</div>
-			<div class="zoomp__item zoomp__item--3">
-				<div class="zoomp__frame">
-					<img src="/prototype/misty-lake.jpg" alt="Misty lake at dawn" />
-				</div>
-			</div>
-			<div class="zoomp__item zoomp__item--4">
-				<div class="zoomp__frame">
-					<img src="/prototype/forest-light.jpg" alt="Light through the forest" />
-				</div>
-			</div>
-			<div class="zoomp__item zoomp__item--5">
-				<div class="zoomp__frame">
-					<img src="/prototype/sun-trees.jpg" alt="Sun through trees" />
-				</div>
-			</div>
-			<div class="zoomp__item zoomp__item--6">
-				<div class="zoomp__frame"><img src="/prototype/foggy-forest.jpg" alt="Foggy forest" /></div>
-			</div>
-			<div class="zoomp__item zoomp__item--7">
-				<div class="zoomp__frame">
-					<img src="/prototype/lake-mountain.jpg" alt="Mountain lake reflection" />
-				</div>
-			</div>
-		</div>
-	</section>
+	<!-- ZOOM GALLERY — the hero frame zooms out to reveal the mosaic (UST-52) -->
+	<ZoomGallery frames={galleryFrames} label="A few frames" />
 
 	<!-- FEATURED STAYS -->
 	<section class="featured">
@@ -487,92 +452,6 @@
 			grid-template-columns: 1fr;
 			gap: 1.5rem;
 		}
-	}
-
-	/* ---------- zoom parallax ---------- */
-	/* Default / no-JS / reduced-motion: a clean static gallery. */
-	.zoomp {
-		color: var(--ink);
-		padding: clamp(3rem, 8vh, 6rem) clamp(1.5rem, 5vw, 4.5rem);
-	}
-	.zoomp__stage {
-		display: grid;
-		grid-template-columns: repeat(3, 1fr);
-		gap: clamp(0.6rem, 1.5vw, 1.2rem);
-	}
-	.zoomp__frame {
-		aspect-ratio: 4 / 3;
-		overflow: hidden;
-		border-radius: 3px;
-	}
-	.zoomp__frame img {
-		width: 100%;
-		height: 100%;
-		object-fit: cover;
-		display: block;
-	}
-
-	/* Animated (JS + motion allowed): sticky zoom-out reveal. */
-	.is-animated .zoomp {
-		height: 300vh;
-		padding: 0;
-	}
-	.is-animated .zoomp__stage {
-		position: sticky;
-		top: 0;
-		height: 100svh;
-		overflow: hidden;
-		display: block;
-	}
-	.is-animated .zoomp__item {
-		position: absolute;
-		inset: 0;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		will-change: transform;
-	}
-	.is-animated .zoomp__frame {
-		position: relative;
-		height: 25vh;
-		width: 25vw;
-		aspect-ratio: auto;
-		border-radius: 0;
-	}
-	.is-animated .zoomp__item--2 .zoomp__frame {
-		top: -30vh;
-		left: 5vw;
-		height: 30vh;
-		width: 35vw;
-	}
-	.is-animated .zoomp__item--3 .zoomp__frame {
-		top: -10vh;
-		left: -25vw;
-		height: 45vh;
-		width: 20vw;
-	}
-	.is-animated .zoomp__item--4 .zoomp__frame {
-		left: 27.5vw;
-		height: 25vh;
-		width: 25vw;
-	}
-	.is-animated .zoomp__item--5 .zoomp__frame {
-		top: 27.5vh;
-		left: 5vw;
-		height: 25vh;
-		width: 20vw;
-	}
-	.is-animated .zoomp__item--6 .zoomp__frame {
-		top: 27.5vh;
-		left: -22.5vw;
-		height: 25vh;
-		width: 30vw;
-	}
-	.is-animated .zoomp__item--7 .zoomp__frame {
-		top: 22.5vh;
-		left: 25vw;
-		height: 15vh;
-		width: 15vw;
 	}
 
 	/* ---------- featured ---------- */
