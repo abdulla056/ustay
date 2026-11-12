@@ -73,4 +73,4 @@ Linear: <url>
 - `UST-15.md` — Host profile (1:1, avatar → media_asset) + property story (done, PR #32; db:reset now applies migrations)
 - `UST-78` (no brief) — Flaky browser tests: warm-up, robust waits, unthrottled Chromium (done, PR #33)
 - `UST-16.md` — Location (1:1, privacy flag), destinations, per-property attractions with host_note (done, migration 0005)
-- `UST-17.md` — Microsite config: code registry (templates/accents/fonts) + per-property config & sections (in progress, Sonnet)
+- `UST-17.md` — Microsite config: code registry (templates/accents/fonts) + per-property config & sections (done, PR #36; accents clay/tide provisional pending user sign-off)
