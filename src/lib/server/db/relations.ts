@@ -10,6 +10,7 @@ import { user } from './auth.schema';
 import { amenity, propertyAmenity, roomAmenity } from './amenity.schema';
 import { hostProfile } from './host.schema';
 import { attraction, destination, propertyLocation } from './location.schema';
+import { micrositeConfig, micrositeSection } from './microsite.schema';
 import { mediaAsset, propertyMedia, roomMedia } from './media.schema';
 import { property, propertySlugRedirect } from './property.schema';
 import { room } from './room.schema';
@@ -23,7 +24,17 @@ export const propertyRelations = relations(property, ({ one, many }) => ({
 	media: many(propertyMedia),
 	hostProfile: one(hostProfile),
 	location: one(propertyLocation),
-	attractions: many(attraction)
+	attractions: many(attraction),
+	micrositeConfig: one(micrositeConfig),
+	micrositeSections: many(micrositeSection)
+}));
+
+export const micrositeConfigRelations = relations(micrositeConfig, ({ one }) => ({
+	property: one(property, { fields: [micrositeConfig.propertyId], references: [property.id] })
+}));
+
+export const micrositeSectionRelations = relations(micrositeSection, ({ one }) => ({
+	property: one(property, { fields: [micrositeSection.propertyId], references: [property.id] })
 }));
 
 export const propertyLocationRelations = relations(propertyLocation, ({ one }) => ({

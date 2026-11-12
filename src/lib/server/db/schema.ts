@@ -9,6 +9,7 @@ export * from './amenity.schema';
 export * from './host.schema';
 export * from './location.schema';
 export * from './media.schema';
+export * from './microsite.schema';
 export * from './property.schema';
 export * from './room.schema';
 export * from './relations';

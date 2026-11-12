@@ -23,7 +23,7 @@ and which sections in which order with which variant.
 
 ### Two sources of truth, split deliberately
 
-**Code registry** (`src/lib/microsite/registry.ts`):
+**Code registry** (`src/lib/features/microsite/registry.ts`):
 
 - It's pure data with no server imports, so both the server repo and the Phase 2 renderer can use it.
 - It holds the **templates**:

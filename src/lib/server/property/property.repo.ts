@@ -64,6 +64,16 @@ export async function findPropertyById(
 	return row;
 }
 
+/**
+ * Lock the property row (`FOR UPDATE`) and return it, or throw {@link PropertyNotFoundError} for an
+ * unknown or malformed id. Call inside a transaction before writing the property's dependants.
+ */
+export async function lockPropertyOrThrow(id: string, tx: Executor = db) {
+	const row = await findPropertyById(id, tx, { lock: true });
+	if (!row) throw new PropertyNotFoundError(String(id));
+	return row;
+}
+
 /** Resolve a retired slug to the property's current slug. `undefined` if it was never a slug. */
 export async function findRedirectedSlug(oldSlug: string, tx: Executor = db) {
 	const [row] = await tx
