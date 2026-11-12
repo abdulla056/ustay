@@ -166,6 +166,28 @@ Rules:
 - **Markdown is stored raw** (`bio`, `story_body`). Rendering and sanitising are the page layer's
   job (Phase 2); never trust or `{@html}` the stored text without sanitising it first.
 
+## Location, destinations and attractions (UST-16)
+
+- **`destination`** is platform-curated (not per-owner): `slug` (unique), `name`, `region`,
+  `country_code` (ISO 3166-1 alpha-2, CHECK `^[A-Z]{2}$`), `summary`. No media yet (Phase 5).
+- **`property_location`** is 1:1 with `property` (`property_id` primary key, cascading FK). Address
+  columns, `locality` and `country_code` required. Coordinates are plain `double precision`
+  (no PostGIS) with a CHECK that both or neither are set, latitude in -90..90 and longitude in
+  -180..180. `destination_id` is nullable, indexed, `ON DELETE SET NULL`.
+- **Privacy:** `show_exact_location` defaults to false (decision 8). Public pages show the locality
+  and an approximate area unless the owner opts in.
+- **`attraction`** is a per-property host recommendation (not shared): `category` and `travel_mode`
+  are enums, `host_note` is the host's voice, `travel_minutes` and `travel_mode` are set together
+  or not at all, `url` must be `http(s)://`, optional coordinate pair as above, `sort_order`
+  (index on `(property_id, sort_order)`).
+- **The attraction image** is an `image` in the same property's library: composite FK
+  `(property_id, media_asset_id)` with the hand-edited `ON DELETE SET NULL (media_asset_id)` (see
+  `drizzle/0005_*`). `setAttractionImage` checks it is an image; `updateMediaAsset` refuses to turn
+  an attraction image into a video.
+- **NULL in CHECKs:** a CHECK passes when it evaluates to NULL, so the coordinate rule is written
+  `(lat IS NULL) = (lng IS NULL) AND lat BETWEEN ... AND lng BETWEEN ...`. An `OR` of the two
+  halves would let a lone latitude through.
+
 ## Seeding
 
 `bun run db:seed` and `bun run db:reset` (UST-10) are the harness for local/dev data. Phase 1

@@ -9,6 +9,7 @@ import { relations } from 'drizzle-orm';
 import { user } from './auth.schema';
 import { amenity, propertyAmenity, roomAmenity } from './amenity.schema';
 import { hostProfile } from './host.schema';
+import { attraction, destination, propertyLocation } from './location.schema';
 import { mediaAsset, propertyMedia, roomMedia } from './media.schema';
 import { property, propertySlugRedirect } from './property.schema';
 import { room } from './room.schema';
@@ -20,7 +21,26 @@ export const propertyRelations = relations(property, ({ one, many }) => ({
 	amenities: many(propertyAmenity),
 	mediaAssets: many(mediaAsset),
 	media: many(propertyMedia),
-	hostProfile: one(hostProfile)
+	hostProfile: one(hostProfile),
+	location: one(propertyLocation),
+	attractions: many(attraction)
+}));
+
+export const propertyLocationRelations = relations(propertyLocation, ({ one }) => ({
+	property: one(property, { fields: [propertyLocation.propertyId], references: [property.id] }),
+	destination: one(destination, {
+		fields: [propertyLocation.destinationId],
+		references: [destination.id]
+	})
+}));
+
+export const destinationRelations = relations(destination, ({ many }) => ({
+	locations: many(propertyLocation)
+}));
+
+export const attractionRelations = relations(attraction, ({ one }) => ({
+	property: one(property, { fields: [attraction.propertyId], references: [property.id] }),
+	image: one(mediaAsset, { fields: [attraction.mediaAssetId], references: [mediaAsset.id] })
 }));
 
 export const hostProfileRelations = relations(hostProfile, ({ one }) => ({
