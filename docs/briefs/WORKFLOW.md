@@ -71,3 +71,4 @@ Linear: <url>
 - `UST-77.md` — End-to-end Playwright lane + CI `e2e` job (done, PR #28)
 - `UST-52.md` — ZoomGallery feature component (done, PR #31; prototype gallery swapped to it)
 - `UST-15.md` — Host profile (1:1, avatar → media_asset) + property story (done, PR #32; db:reset now applies migrations)
+- `UST-16.md` — Location (1:1, privacy flag), destinations, per-property attractions with host_note (in progress, Sonnet)
