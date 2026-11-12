@@ -70,4 +70,4 @@ Linear: <url>
 - `UST-53.md` — Line-splitting for display type (**DONE + merged**, PR #26 → SplitText inside `displayEntrance`, plain-text headings, text-only split + MutationObserver bail-out)
 - `UST-77.md` — End-to-end Playwright lane + CI `e2e` job (done, PR #28)
 - `UST-52.md` — ZoomGallery feature component (done, PR #31; prototype gallery swapped to it)
-- `UST-15.md` — Host profile (1:1, avatar → media_asset) + property story (in progress, Sonnet)
+- `UST-15.md` — Host profile (1:1, avatar → media_asset) + property story (done, PR #32; db:reset now applies migrations)
