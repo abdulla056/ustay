@@ -12,6 +12,7 @@ decision here.
 | 5   | Microsite addresses | Start with paths (`/s/<slug>`). Subdomains later; custom domains only on owner demand.                                                                                                                                                      | 2026-11-10 | —      |
 | 6   | Theme customisation | Owners pick a template, plus an accent colour and font pairing from a curated set. No free-form colours.                                                                                                                                    | 2026-11-10 | —      |
 | 7   | Search              | Postgres-native search (filters + full-text) first. Add a dedicated search service only if it gets too slow.                                                                                                                                | 2026-11-10 | —      |
+| 8   | Location privacy    | Many homestays are the host's own home. Public pages show the locality and an approximate area only; the exact address and pin show only when the owner opts in (`property_location.show_exact_location`, default off). No revisit planned. | 2026-11-12 | UST-16 |
 
 ## Money rules (from decision 2)
 

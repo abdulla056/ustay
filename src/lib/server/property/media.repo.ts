@@ -12,6 +12,7 @@ import { and, asc, eq, inArray } from 'drizzle-orm';
 import { db, type Executor } from '$lib/server/db';
 import { isUuid } from '$lib/server/db/helpers';
 import {
+	attraction,
 	mediaAsset,
 	hostProfile,
 	mediaRole,
@@ -129,6 +130,17 @@ export class HostAvatarError extends Error {
 	}
 }
 
+/** Thrown when an attraction image is not an image, or an asset that is one stops being one. */
+export class AttractionImageError extends Error {
+	constructor(
+		readonly assetId: string,
+		message: string
+	) {
+		super(message);
+		this.name = 'AttractionImageError';
+	}
+}
+
 const posterNotImage = (id: string) =>
 	new MediaPosterError(id, `Poster ${id} must be an image asset`);
 
@@ -165,7 +177,8 @@ export async function insertMediaAsset(input: NewMediaAssetInput, tx: Executor =
  * `undefined` if the asset does not exist. `undefined` fields and `propertyId` are ignored; a patch
  * with nothing left returns the current row. Changing `kind` away from `image` is rejected with
  * {@link MediaPosterError} while the asset is another asset's poster, and with
- * {@link HostAvatarError} while it is a host avatar.
+ * {@link HostAvatarError} while it is a host avatar, and with {@link AttractionImageError} while it is
+ * an attraction image.
  */
 export async function updateMediaAsset(id: string, patch: MediaAssetPatch, tx: Executor = db) {
 	if (!isUuid(id)) return undefined;
@@ -206,6 +219,17 @@ export async function updateMediaAsset(id: string, patch: MediaAssetPatch, tx: E
 			if (avatarOf) {
 				throw new HostAvatarError(id, `Asset ${id} is a host avatar and must stay an image`);
 			}
+			const [shownBy] = await inner
+				.select({ id: attraction.id })
+				.from(attraction)
+				.where(eq(attraction.mediaAssetId, id))
+				.limit(1);
+			if (shownBy) {
+				throw new AttractionImageError(
+					id,
+					`Asset ${id} is the image of attraction ${shownBy.id} and must stay an image`
+				);
+			}
 		}
 		const [row] = await inner
 			.update(mediaAsset)
@@ -216,7 +240,12 @@ export async function updateMediaAsset(id: string, patch: MediaAssetPatch, tx: E
 	});
 }
 
-/** Deleting an asset removes its placements (cascade) and clears it as a poster (set null). */
+/**
+ * Deleting an asset removes its placements (cascade) and clears it as a poster, a host avatar or
+ * an attraction image (set null). The avatar and attraction-image clears rely on the
+ * column-scoped `ON DELETE SET NULL (column)` in the migrations (`drizzle/0004_*`, `0005_*`), so
+ * use `db:reset` or `db:migrate`, not `db:push`, on a database where assets get deleted.
+ */
 export async function deleteMediaAsset(id: string, tx: Executor = db) {
 	if (!isUuid(id)) return undefined;
 	const [row] = await tx.delete(mediaAsset).where(eq(mediaAsset.id, id)).returning();

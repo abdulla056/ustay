@@ -8,6 +8,7 @@ import { db, type Executor } from '$lib/server/db';
 import { property, propertySlugRedirect } from '$lib/server/db/schema';
 import { uniqueSlug } from '$lib/server/db/slug';
 import { isUuid } from '$lib/server/db/helpers';
+import { optionalText, type ErrorFactory } from '$lib/server/validate';
 
 /**
  * Input for {@link insertProperty}. The id, timestamps and slug are assigned here, so they are
@@ -143,13 +144,10 @@ export class PropertyValidationError extends Error {
 	}
 }
 
+const failValidation: ErrorFactory = (m) => new PropertyValidationError(m);
+
 /** Trim a text field; blank becomes `null` (cleared). Non-strings are a typed error. */
-function cleanText(value: unknown, field: string): string | null {
-	if (value === null) return null;
-	if (typeof value !== 'string') throw new PropertyValidationError(`${field} must be a string`);
-	const trimmed = value.trim();
-	return trimmed === '' ? null : trimmed;
-}
+const cleanText = (value: unknown, field: string) => optionalText(value, field, failValidation);
 
 /**
  * Set or clear the property's story (heading and markdown body, stored raw but trimmed). `null`
