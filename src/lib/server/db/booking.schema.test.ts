@@ -89,7 +89,6 @@ describe('booking_request table shape', () => {
 			'booking_request_guest_email_check',
 			'booking_request_guest_name_check',
 			'booking_request_kind_check',
-			'booking_request_message_check',
 			'booking_request_price_check',
 			'booking_request_status_check'
 		]);
