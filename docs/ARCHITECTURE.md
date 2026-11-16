@@ -136,7 +136,7 @@ another's chrome, and no `+layout@.svelte` reset is needed to keep them apart.
 | Group         | URLs                                       | Layout                                            |
 | ------------- | ------------------------------------------ | ------------------------------------------------- |
 | `(platform)`  | `/`, `/destinations/…`, `/stays`, `/about` | Ustay chrome: header/footer, Lenis, tonal scroll. |
-| `(microsite)` | `/stays/[property]`, and its sub-pages     | The property's own chrome, per-property theme.    |
+| `(microsite)` | `/s/[slug]`, and its sub-pages             | The property's own chrome, per-property theme.    |
 | `(dashboard)` | `/dashboard/**`                            | Owner CMS: sidebar, dense, no cinematic motion.   |
 | `(auth)`      | `/sign-in`, `/sign-up`, `/reset-password`  | Bare centred card, no chrome.                     |
 
@@ -152,16 +152,46 @@ Each group folder has a `README.md` stating what belongs in it. Outside the grou
 
 ### Why the microsite is a separate group
 
-`/stays` (the index) is `(platform)`, while `/stays/[property]` is `(microsite)`. Splitting one URL
-subtree across two groups looks odd until you remember the product: the index is Ustay's, the
-property page is the property's, and the whole point of Ustay is that a microsite reads as the
-property's own website. Different chrome, therefore different group.
+`/stays` (the index) is `(platform)`, while `/s/[slug]` (decision 5) is `(microsite)`. The index is
+Ustay's, the property page is the property's, and the whole point of Ustay is that a microsite
+reads as the property's own website. Different chrome, therefore different group.
 
 Path-based URLs (fixed by `docs/DATABASE.md`) are the MVP. When properties get subdomains or custom
 domains, **do not restructure the routes** — add a `reroute` hook in `src/hooks.ts` mapping
-`riad-el-fenn.ustay.com/rooms` onto the existing `/stays/riad-el-fenn/rooms`. `reroute` runs on both
+`riad-el-fenn.ustay.com/rooms` onto the existing `/s/riad-el-fenn/rooms`. `reroute` runs on both
 server and client, is expected to be pure and fast, and does not change the address bar, which is
 exactly the behaviour a vanity domain needs.
+
+### The microsite (UST-21, UST-22)
+
+**Request flow.** `/s/[slug]` → `+page.server.ts` calls `loadMicrosite(slug)`
+(`$lib/server/microsite/load.ts`) and maps its result: `ok` renders, `redirect` is a **301** to the
+current slug (decision 1; only if the target is published), `not_found` is a **404**. Drafts and
+archived properties are always `not_found`: nothing unpublished leaves the loader. `+page.svelte`
+sets the `<svelte:head>` SEO tags and renders `MicrositeRenderer`.
+
+**View-model contract.** `loadMicrosite` composes the Phase 1 repositories (reads run
+concurrently) into `MicrositeView = { property, theme, sections, seo }`, defined in
+`$lib/features/microsite/types.ts` (client-safe, types only). `sections` is an ordered
+discriminated union `{ type, variant, data }`, with `data` shaped for rendering rather than copied
+from rows: money is integer minor units plus currency (format with `formatMoney`), the location is
+the **public** projection only (decision 8: no address lines unless the owner shows the exact
+place), reviews are published only and carry `source` and `origin` so imported ones are labelled,
+and there are no ids, owner ids, emails or token hashes. A section with nothing to show is dropped
+by the loader; the rule per type is in the header of `load.ts`.
+
+**How a section plugs in.** A section is a component that takes `SectionProps<T>`
+(`{ data, variant }`) and carries `data-section="<type>"` on its root. To add or replace one:
+put the component in `$lib/features/microsite/sections/`, register it in `sections.ts` (the
+registry type is exhaustive over `SECTION_TYPES`, so a missing entry fails `bun run check`), and
+add its data type to `SectionDataMap` plus a builder in `load.ts`. The renderer wraps every section
+in `<svelte:boundary>`, so on the client one throwing section renders nothing instead of breaking
+the page (boundaries do not catch server-render errors).
+
+**Markdown rule.** Owner-authored markdown (the story body, the host bio) becomes HTML only in
+`$lib/server/microsite/markdown.ts`: `markdown-it` with `html: false` and its default link
+validation (no `javascript:`, `vbscript:` or `data:` links), with `rel="noopener noreferrer"` on
+external links. The view carries `{ html }`, and `{@html}` may be used on that and nothing else.
 
 ### Route conventions
 

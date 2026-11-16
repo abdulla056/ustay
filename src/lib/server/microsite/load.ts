@@ -1,0 +1,346 @@
+/**
+ * `loadMicrosite(slug)` (UST-21): composes the Phase 1 repositories into the public view model a
+ * microsite renders (`$lib/features/microsite/types`). Holds no SvelteKit `error()` or
+ * `redirect()`: the route maps the result.
+ *
+ * Lookup order: a published property with the slug renders; a retired slug whose current property
+ * is published redirects; anything else (unknown, draft, archived) is `not_found`. Draft content
+ * never leaves this function.
+ *
+ * Empty-section rules (a section whose data is empty is dropped, never rendered as an empty shell):
+ * - `hero`, `booking_cta`: always kept when enabled (the hero image may be null).
+ * - `overview`: dropped without a short description and without a long description.
+ * - `gallery`: dropped without any gallery photograph.
+ * - `rooms`: dropped without rooms.
+ * - `amenities`: dropped without property amenities.
+ * - `host_story`: dropped without both a story body and a host profile.
+ * - `location`: dropped without both a location and attractions.
+ */
+import { db, type Executor } from '$lib/server/db';
+import { findPropertyBySlug, findRedirectedSlug } from '$lib/server/property/property.repo';
+import { getRenderableMicrosite } from '$lib/server/microsite/microsite.repo';
+import { getPublicPropertyLocation } from '$lib/server/property/location.repo';
+import {
+	listMediaAssets,
+	listPropertyMedia,
+	listRoomMedia,
+	type MediaAsset
+} from '$lib/server/property/media.repo';
+import { getHostProfile } from '$lib/server/property/host.repo';
+import { listRoomsForProperty } from '$lib/server/property/room.repo';
+import { listPropertyAmenities, listRoomAmenities } from '$lib/server/property/amenity.repo';
+import { listAttractions } from '$lib/server/property/attraction.repo';
+import { findDestinationById } from '$lib/server/destination/destination.repo';
+import { getRatingSummary, listReviews } from '$lib/server/review/review.repo';
+import { formatMoney } from '$lib/features/microsite/format';
+import type {
+	AmenitiesData,
+	AttractionView,
+	BookingCtaData,
+	GalleryFrame,
+	HeroData,
+	HostStoryData,
+	LocationData,
+	MicrositeView,
+	Money,
+	OverviewData,
+	PropertyView,
+	ReviewsView,
+	RoomView,
+	SectionView,
+	SeoView
+} from '$lib/features/microsite/types';
+import { renderMarkdown } from './markdown';
+
+export type LoadMicrositeResult =
+	{ kind: 'ok'; view: MicrositeView } | { kind: 'redirect'; slug: string } | { kind: 'not_found' };
+
+const REVIEW_LIMIT = 10;
+
+const AMENITY_CATEGORY_LABELS: Record<string, string> = {
+	essentials: 'Essentials',
+	bathroom: 'Bathroom',
+	kitchen: 'Kitchen',
+	outdoor: 'Outdoors',
+	wellness: 'Wellness',
+	family: 'Family',
+	accessibility: 'Accessibility',
+	services: 'Services'
+};
+
+/** A media row as a gallery frame. Only images become frames (a video is not a photograph). */
+function frame(
+	asset: Pick<
+		MediaAsset,
+		'kind' | 'url' | 'altText' | 'width' | 'height' | 'focalX' | 'focalY' | 'caption'
+	>
+): GalleryFrame | null {
+	if (asset.kind !== 'image') return null;
+	return {
+		src: asset.url,
+		alt: asset.altText,
+		width: asset.width,
+		height: asset.height,
+		...(asset.focalX !== null && asset.focalY !== null
+			? { focalX: asset.focalX, focalY: asset.focalY }
+			: {}),
+		...(asset.caption ? { caption: asset.caption } : {})
+	};
+}
+
+const frames = (assets: Parameters<typeof frame>[0][]): GalleryFrame[] =>
+	assets.map(frame).filter((f): f is GalleryFrame => f !== null);
+
+const paragraphs = (text: string | null) =>
+	(text ?? '')
+		.split(/\n\s*\n/)
+		.map((p) => p.trim())
+		.filter((p) => p !== '');
+
+export async function loadMicrosite(slug: string, tx: Executor = db): Promise<LoadMicrositeResult> {
+	const found = await findPropertyBySlug(slug, tx);
+	if (!found) {
+		const current = await findRedirectedSlug(slug, tx);
+		if (!current) return { kind: 'not_found' };
+		const target = await findPropertyBySlug(current, tx);
+		return target?.status === 'published'
+			? { kind: 'redirect', slug: target.slug }
+			: { kind: 'not_found' };
+	}
+	if (found.status !== 'published') return { kind: 'not_found' };
+
+	const id = found.id;
+	const [
+		microsite,
+		location,
+		library,
+		placed,
+		host,
+		rooms,
+		propertyAmenities,
+		attractions,
+		reviewPage,
+		ratingSummary
+	] = await Promise.all([
+		getRenderableMicrosite(id, tx),
+		getPublicPropertyLocation(id, tx),
+		listMediaAssets(id, tx),
+		listPropertyMedia(id, undefined, tx),
+		getHostProfile(id, tx),
+		listRoomsForProperty(id, tx),
+		listPropertyAmenities(id, tx),
+		listAttractions(id, tx),
+		listReviews(id, { limit: REVIEW_LIMIT }, tx),
+		getRatingSummary(id, tx)
+	]);
+	// Unpublished between the first read and now, or deleted: treat as gone.
+	if (!microsite) return { kind: 'not_found' };
+
+	const [roomExtras, destination] = await Promise.all([
+		Promise.all(
+			rooms.map(async (r) => ({
+				media: await listRoomMedia(r.id, tx),
+				amenities: await listRoomAmenities(r.id, tx)
+			}))
+		),
+		location?.destinationId ? findDestinationById(location.destinationId, tx) : undefined
+	]);
+
+	const currency = found.currency;
+	const money = (amountMinor: number): Money => ({ amountMinor, currency });
+	const libraryById = new Map(library.map((a) => [a.id, a]));
+
+	const property: PropertyView = {
+		slug: found.slug,
+		name: found.name,
+		type: found.type,
+		tagline: found.tagline,
+		shortDescription: found.shortDescription,
+		currency
+	};
+
+	// --- Media ---
+	const heroFrame = frames(placed.filter((a) => a.role === 'hero'))[0] ?? null;
+	const galleryFrames = frames(placed.filter((a) => a.role === 'gallery'));
+	const heroImage = heroFrame ?? galleryFrames[0] ?? null;
+
+	// --- Rooms and prices ---
+	const roomViews: RoomView[] = rooms.map((r, i) => ({
+		name: r.name,
+		description: r.description,
+		maxGuests: r.maxGuests,
+		beds: r.beds.map((b) => ({ type: b.type, count: b.count })),
+		nightly: money(r.nightlyRateMinor),
+		image: frames(roomExtras[i].media)[0] ?? null,
+		amenities: roomExtras[i].amenities.map((a) => ({ name: a.name, icon: a.icon }))
+	}));
+	const rates = rooms.map((r) => r.nightlyRateMinor);
+	const lowest = rates.length ? Math.min(...rates) : null;
+	const highest = rates.length ? Math.max(...rates) : null;
+	const fromPrice = lowest === null ? null : money(lowest);
+	const maxGuests = rooms.length ? Math.max(...rooms.map((r) => r.maxGuests)) : null;
+	const priceRange =
+		lowest === null || highest === null
+			? null
+			: lowest === highest
+				? formatMoney(money(lowest))
+				: `${formatMoney(money(lowest))} - ${formatMoney(money(highest))}`;
+
+	// --- Reviews (published only; imported ones keep their label) ---
+	const reviews: ReviewsView | null =
+		ratingSummary.count === 0
+			? null
+			: {
+					items: reviewPage.items.map((r) => ({
+						rating: r.rating,
+						title: r.title,
+						body: r.body,
+						authorName: r.authorName,
+						stayedOn: r.stayedOn,
+						source: r.source,
+						origin: r.origin,
+						hostReply: r.hostReply
+					})),
+					summary: {
+						count: ratingSummary.count,
+						average: ratingSummary.average,
+						guestCount: ratingSummary.guestCount,
+						importedCount: ratingSummary.importedCount
+					}
+				};
+
+	// --- Location (public projection only) ---
+	const place: LocationData['place'] = location
+		? {
+				locality: location.locality,
+				region: location.region,
+				countryCode: location.countryCode,
+				latitude: location.latitude,
+				longitude: location.longitude,
+				exact: location.showExactLocation,
+				addressLines: location.showExactLocation
+					? [location.addressLine1, location.addressLine2, location.postalCode].filter(
+							(l): l is string => Boolean(l)
+						)
+					: []
+			}
+		: null;
+	const attractionViews: AttractionView[] = attractions.map((a) => {
+		const image = a.mediaAssetId ? libraryById.get(a.mediaAssetId) : undefined;
+		return {
+			name: a.name,
+			category: a.category,
+			hostNote: a.hostNote,
+			travel:
+				a.travelMinutes !== null && a.travelMode !== null
+					? { minutes: a.travelMinutes, mode: a.travelMode }
+					: null,
+			distanceMeters: a.distanceMeters,
+			url: a.url,
+			image: image ? frame(image) : null
+		};
+	});
+
+	// --- Host and story ---
+	const storyHtml = renderMarkdown(found.storyBody);
+	const hostAvatar = host?.avatarAssetId ? libraryById.get(host.avatarAssetId) : undefined;
+	const hostStory: HostStoryData = {
+		story: storyHtml ? { heading: found.storyHeading, body: { html: storyHtml } } : null,
+		host: host
+			? {
+					displayName: host.displayName,
+					bio: host.bio ? { html: renderMarkdown(host.bio) } : null,
+					avatar: hostAvatar ? frame(hostAvatar) : null,
+					hostingSince: host.hostingSince,
+					languages: host.languages
+				}
+			: null
+	};
+
+	// --- Section data, or null when the section is empty and should be dropped ---
+	const longDescription = paragraphs(found.description);
+	const builders: {
+		[K in SectionView['type']]: () => Extract<SectionView, { type: K }>['data'] | null;
+	} = {
+		hero: (): HeroData => ({
+			name: found.name,
+			tagline: found.tagline,
+			locationLabel: place ? [place.locality, place.region].filter(Boolean).join(', ') : null,
+			image: heroImage
+		}),
+		overview: (): OverviewData | null =>
+			!found.shortDescription && longDescription.length === 0
+				? null
+				: {
+						type: found.type,
+						shortDescription: found.shortDescription,
+						paragraphs: longDescription,
+						roomCount: rooms.length,
+						maxGuests,
+						fromPrice,
+						reviews
+					},
+		gallery: () => (galleryFrames.length === 0 ? null : { frames: galleryFrames }),
+		rooms: () => (roomViews.length === 0 ? null : { rooms: roomViews }),
+		amenities: (): AmenitiesData | null => {
+			if (propertyAmenities.length === 0) return null;
+			const groups = new Map<string, AmenitiesData['groups'][number]>();
+			for (const a of propertyAmenities) {
+				const group = groups.get(a.category) ?? {
+					category: a.category,
+					label: AMENITY_CATEGORY_LABELS[a.category] ?? a.category,
+					items: []
+				};
+				group.items.push({ key: a.key, name: a.name, icon: a.icon, note: a.note });
+				groups.set(a.category, group);
+			}
+			return { groups: [...groups.values()] };
+		},
+		host_story: () => (!hostStory.story && !hostStory.host ? null : hostStory),
+		location: (): LocationData | null =>
+			!place && attractionViews.length === 0
+				? null
+				: {
+						place,
+						destination: destination
+							? { name: destination.name, summary: destination.summary }
+							: null,
+						attractions: attractionViews
+					},
+		booking_cta: (): BookingCtaData => ({ name: found.name, fromPrice, maxGuests })
+	};
+
+	const sections: SectionView[] = [];
+	for (const s of microsite.sections) {
+		// `builders[s.type]` is correlated with `s.type`; TypeScript cannot see that through the union.
+		const data = (builders[s.type] as () => unknown)();
+		if (data !== null) sections.push({ type: s.type, variant: s.variant, data } as SectionView);
+	}
+
+	const seo: SeoView = {
+		title: found.tagline ? `${found.name} · ${found.tagline}` : found.name,
+		description: found.shortDescription,
+		canonicalPath: `/s/${found.slug}`,
+		image: heroImage ? { src: heroImage.src, alt: heroImage.alt } : null,
+		priceRange,
+		address: place
+			? { locality: place.locality, region: place.region, countryCode: place.countryCode }
+			: null
+	};
+
+	return {
+		kind: 'ok',
+		view: {
+			property,
+			theme: {
+				templateKey: microsite.template.key,
+				accentKey: microsite.accent.key,
+				fontKey: microsite.font.key,
+				accent: { light: microsite.accent.light, dark: microsite.accent.dark },
+				font: { display: microsite.font.display, body: microsite.font.body }
+			},
+			sections,
+			seo
+		}
+	};
+}

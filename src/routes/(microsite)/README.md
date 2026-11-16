@@ -1,7 +1,7 @@
 # `(microsite)` — per-property branded sites
 
-Each property's own site, served at `/stays/[property]` (the slug URL fixed by `docs/DATABASE.md`),
-with sub-pages such as `/stays/[property]/rooms` and `/stays/[property]/experiences`.
+Each property's own site, served at `/s/[slug]` (decision 5 in `docs/DECISIONS.md`; `/stays/<slug>` is not a route),
+with future sub-pages such as `/s/[slug]/rooms`. A retired slug 301s to the current one.
 
 This is a **separate group from `(platform)` on purpose**: a microsite must read as the property's
 own website, so it gets its own `+layout.svelte` with property-scoped navigation, wordmark, and
