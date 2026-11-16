@@ -282,6 +282,64 @@ Booking requests only (decision 3); guests need just an email (decision 4). Code
 - Deleting a property cascades to its requests and messages; deleting a guest or author account
   nulls the reference and keeps the row.
 
+## Reviews (UST-19)
+
+Reviews make a property believable, so genuine guest reviews are never blurred with anything an
+owner enters. Code: `db/review.schema.ts`, `review/review.repo.ts`, pure rounding in
+`review/summary.ts`.
+
+- **Two sources** (`review_source`). `guest` is verified: tied to a stay that happened on Ustay
+  through `booking_request_id` (unique, so one review per booking; `ON DELETE SET NULL`, so the
+  review outlives its booking). `imported` is entered by an owner for a property that already has
+  a reputation elsewhere; it needs a non-blank `origin` ("Google", "Booking.com") and has no
+  booking. **Labelling rule for Phase 2 and Phase 5 UI: an imported review must always be shown
+  with its `origin` label, and never styled or counted as a verified guest review.** The summary
+  returns `guestCount` and `importedCount` separately for that reason.
+- **Columns.** `rating` is a `smallint`, whole stars 1 to 5. `body` and `author_name` are required
+  and non-blank; `title` is optional. For a guest review `author_name` is a display name such as
+  "Aisha R." (`displayName()` makes it from the booking's guest name), never the email: tokens
+  containing `@` are dropped, and a blank or over-long result becomes `Guest`. `stayed_on` is a
+  date: for a guest review the booking's `check_in`; for an imported one it is optional and may
+  not be after today in the property's timezone. `author_user_id` copies `guest_user_id` (set
+  null on account delete). `moderated_at` is when the platform published or rejected the review
+  (null while `pending`); `published_at` is the same instant for a published review.
+- **CHECKs.** A guest review has no `origin`; an imported review has a non-blank `origin` and no
+  booking; `host_reply` and `host_replied_at` are both set or both null (and the reply is
+  non-blank); `published_at` is set if and only if `status = 'published'`; `moderated_at` is set
+  if and only if `status <> 'pending'`. The "a guest review has
+  a booking" rule is the repo's, at creation, because the FK may later be nulled.
+- **Verified-stay rule.** `createGuestReview` needs: the booking exists
+  (`ReviewBookingNotFoundError`), belongs to this property (`ReviewBookingPropertyError`), is a
+  `booking` that is `accepted` (`ReviewBookingNotEligibleError`), its `check_out` is on or before
+  today in the property's timezone with an injected `now` (`ReviewStayNotCompleteError`), and has
+  no review yet (`ReviewAlreadyExistsError`, mapped from the unique index's 23505). Proving the
+  caller is that guest (the access token or the signed-in account) is the route's job.
+- **Moderation.** Every review starts `pending` (the `review_status` default), imported ones too,
+  so an owner cannot put a fake review live. `publishReview` / `rejectReview` are platform actions,
+  allowed only from `pending` (`ReviewTransitionError`), and take an injected `now` that stamps
+  `moderated_at` (and `published_at` on publish). **Owners cannot edit or delete guest reviews**: the repo has no update for
+  `rating`, `title` or `body`, and `deleteImportedReview` refuses guest reviews
+  (`ReviewSourceError`). An owner's tools are the host reply (`setHostReply`, which stamps
+  `host_replied_at`; a blank or `null` reply clears it; a new reply needs a `published` review, else `ReviewNotPublishedError`)
+  and deleting imported reviews. **Routes must enforce who calls what**: moderation is not an
+  owner action, replies and imported deletes are the property owner's, and writing a guest
+  review is the verified guest's.
+- **Aggregate.** `getRatingSummary(propertyId)` is computed on read from **published** reviews in
+  one aggregate query: `count`, `average` (rounded half-up to one decimal in integer arithmetic,
+  `null` for no reviews), the 1 to 5 `distribution`, and `guestCount` / `importedCount`. Nothing
+  is cached on `property`. Add a cached or materialised summary when discovery sorts by rating
+  (Phase 5); at MVP scale one indexed aggregate is cheap.
+- **Reads.** `listReviews(propertyId, { status = 'published', source, limit, cursor })` returns
+  `{ items, nextCursor }` as a keyset page on the raw column plus `id`. Published reviews (the
+  public view) are newest first: `published_at DESC NULLS LAST, id DESC`, on
+  `(property_id, status, published_at desc)`. Pending and rejected reviews (the moderation queue)
+  are oldest first, `created_at ASC, id ASC`, so the backlog is worked first in, first out, on
+  `(property_id, status, created_at)`. The cursor carries the timestamp as Postgres read it back
+  (microsecond ISO string), so paging never skips or repeats a row; a db test runs `EXPLAIN` on
+  both orderings and checks the indexes are used.
+- Relations: `property.reviews`, `review.property`, `review.bookingRequest`, `review.authorUser`,
+  `bookingRequest.review`. Deleting a property cascades to its reviews.
+
 ## Seeding
 
 `bun run db:seed` and `bun run db:reset` (UST-10) are the harness for local/dev data. Phase 1

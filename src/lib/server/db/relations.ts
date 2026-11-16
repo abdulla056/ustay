@@ -14,6 +14,7 @@ import { attraction, destination, propertyLocation } from './location.schema';
 import { micrositeConfig, micrositeSection } from './microsite.schema';
 import { mediaAsset, propertyMedia, roomMedia } from './media.schema';
 import { property, propertySlugRedirect } from './property.schema';
+import { review } from './review.schema';
 import { room } from './room.schema';
 
 export const propertyRelations = relations(property, ({ one, many }) => ({
@@ -28,14 +29,25 @@ export const propertyRelations = relations(property, ({ one, many }) => ({
 	attractions: many(attraction),
 	micrositeConfig: one(micrositeConfig),
 	micrositeSections: many(micrositeSection),
-	bookingRequests: many(bookingRequest)
+	bookingRequests: many(bookingRequest),
+	reviews: many(review)
+}));
+
+export const reviewRelations = relations(review, ({ one }) => ({
+	property: one(property, { fields: [review.propertyId], references: [property.id] }),
+	bookingRequest: one(bookingRequest, {
+		fields: [review.bookingRequestId],
+		references: [bookingRequest.id]
+	}),
+	authorUser: one(user, { fields: [review.authorUserId], references: [user.id] })
 }));
 
 export const bookingRequestRelations = relations(bookingRequest, ({ one, many }) => ({
 	property: one(property, { fields: [bookingRequest.propertyId], references: [property.id] }),
 	room: one(room, { fields: [bookingRequest.roomId], references: [room.id] }),
 	guestUser: one(user, { fields: [bookingRequest.guestUserId], references: [user.id] }),
-	messages: many(bookingMessage)
+	messages: many(bookingMessage),
+	review: one(review)
 }));
 
 export const bookingMessageRelations = relations(bookingMessage, ({ one }) => ({

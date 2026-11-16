@@ -104,6 +104,17 @@ export function userRef(name = 'user_id', onDelete: ReferentialAction = 'cascade
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+/**
+ * The Postgres error code (`23505`, `23514`, ...) of a failed query, or `undefined`. Drizzle wraps
+ * the driver error, so the code is on `cause`; repositories map the codes they expect to typed
+ * errors and never let a raw code reach callers.
+ */
+export function pgErrorCode(error: unknown): string | undefined {
+	const e = error as { code?: unknown; cause?: { code?: unknown } } | null;
+	const code = e?.cause?.code ?? e?.code;
+	return typeof code === 'string' ? code : undefined;
+}
+
 /** Postgres rejects a malformed uuid with a 500-grade error; check the shape before querying. */
 export const isUuid = (value: unknown): value is string =>
 	typeof value === 'string' && UUID.test(value);

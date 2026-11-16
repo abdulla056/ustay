@@ -5,7 +5,7 @@
  */
 import { and, asc, eq } from 'drizzle-orm';
 import { db, type Executor } from '$lib/server/db';
-import { isUuid } from '$lib/server/db/helpers';
+import { isUuid, pgErrorCode } from '$lib/server/db/helpers';
 import { destination, property, propertyLocation } from '$lib/server/db/schema';
 import { slugify, uniqueSlug } from '$lib/server/db/slug';
 import {
@@ -95,8 +95,7 @@ export async function createDestination(input: NewDestinationInput, tx: Executor
 			return row;
 		});
 	} catch (error) {
-		const e = error as { code?: string; cause?: { code?: string } };
-		if ((e.cause?.code ?? e.code) === '23505') throw fail(`slug "${slug}" is already taken`);
+		if (pgErrorCode(error) === '23505') throw fail(`slug "${slug}" is already taken`);
 		throw error;
 	}
 }
