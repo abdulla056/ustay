@@ -77,4 +77,5 @@ Linear: <url>
 - `UST-18.md` — Booking requests + questions (one table, kind enum), lifecycle, messages, hashed guest access token (done, PR #37; Postgres pinned to 18)
 - `UST-19.md` — Reviews: verified guest vs labelled imported, moderation, host reply, aggregate computed on read (done, PR #38)
 - `UST-20.md` — Sample property "Rumah Kabus": every relation seeded, local static imagery, verified through repos (done, PR #39; media URL rule tightened to https or /prototype/*)
-- `UST-21.md` — Phase 2 foundation: /s/<slug> route + loadMicrosite view model + section registry/renderer (closes UST-21 + UST-22) (in progress, Sonnet)
+- `UST-21.md` — Phase 2 foundation: /s/<slug> route + loadMicrosite view model + section registry/renderer (closes UST-21 + UST-22) (done, PR #40)
+- `PHASE2-SECTIONS.md` — Sections UST-23..30, one worker each in parallel (in progress, Sonnet)
