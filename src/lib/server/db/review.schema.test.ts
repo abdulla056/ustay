@@ -44,6 +44,7 @@ describe('review table shape', () => {
 			'review_author_name_check',
 			'review_body_check',
 			'review_host_reply_check',
+			'review_moderated_at_check',
 			'review_published_at_check',
 			'review_rating_check',
 			'review_source_check',
@@ -62,9 +63,10 @@ describe('review table shape', () => {
 		});
 	});
 
-	it('indexes (property_id, status, published_at)', () => {
-		expect(config.indexes.map((i) => i.config.name)).toContain(
-			'review_property_id_status_published_at_idx'
-		);
+	it('indexes the public list and the moderation queue', () => {
+		const names = config.indexes.map((i) => i.config.name);
+		expect(names).toContain('review_property_id_status_published_at_idx');
+		expect(names).toContain('review_property_id_status_created_at_idx');
+		expect(columns.moderatedAt.notNull).toBe(false);
 	});
 });

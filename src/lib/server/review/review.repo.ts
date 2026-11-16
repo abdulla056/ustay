@@ -13,16 +13,14 @@
  * `deleteImportedReview` refuses guest reviews, so owners cannot rewrite or remove genuine
  * feedback through it.
  */
-import { and, desc, eq, sql, type SQL } from 'drizzle-orm';
+import { and, asc, desc, eq, getTableColumns, gt, lt, or, sql, type SQL } from 'drizzle-orm';
 import { db, type Executor } from '$lib/server/db';
-import { isUuid } from '$lib/server/db/helpers';
+import { isUuid, pgErrorCode } from '$lib/server/db/helpers';
 import { bookingRequest, review, reviewSources, reviewStatuses } from '$lib/server/db/schema';
 import { isCalendarDate, todayInZone } from '$lib/server/booking/lifecycle';
 import { findPropertyById } from '$lib/server/property/property.repo';
 import { optionalText, requiredText, type ErrorFactory } from '$lib/server/validate';
 import { averageRating } from './summary';
-
-export { averageRating };
 
 export type Review = typeof review.$inferSelect;
 export type ReviewSource = (typeof reviewSources)[number];
@@ -120,6 +118,17 @@ export class ReviewTransitionError extends Error {
 	}
 }
 
+/** Thrown when a host reply is set on a review that is not `published`. */
+export class ReviewNotPublishedError extends Error {
+	constructor(
+		readonly reviewId: string,
+		readonly status: ReviewStatus
+	) {
+		super(`Review ${reviewId} is ${status}, so it cannot take a host reply`);
+		this.name = 'ReviewNotPublishedError';
+	}
+}
+
 /** Thrown when an action is not allowed for the review's source (deleting a guest review). */
 export class ReviewSourceError extends Error {
 	constructor(
@@ -159,12 +168,23 @@ function clock(value: unknown): Date {
 	return value instanceof Date && !Number.isNaN(value.getTime()) ? value : new Date();
 }
 
-/** `Aisha Rahman` -> `Aisha R.`; a single name is kept; never anything with an `@`. */
+/** The neutral name used when a guest name cannot be shown safely. */
+export const FALLBACK_AUTHOR_NAME = 'Guest';
+
+/**
+ * `Aisha Rahman` -> `Aisha R.`; a single name is kept. Any token containing `@` is dropped (a
+ * guest may have typed their email as their name), and if nothing usable is left, or the result
+ * is longer than the cap, it is {@link FALLBACK_AUTHOR_NAME}. The result is always non-blank,
+ * within the cap and free of `@`, so the insert can never trip a CHECK.
+ */
 export function displayName(fullName: string): string {
-	const parts = fullName.trim().split(/\s+/);
-	if (parts.length < 2) return parts[0] ?? '';
-	const last = [...parts[parts.length - 1]][0]?.toUpperCase() ?? '';
-	return `${parts[0]} ${last}.`;
+	const parts = String(fullName ?? '')
+		.split(/\s+/)
+		.filter((part) => part !== '' && !part.includes('@'));
+	if (parts.length === 0) return FALLBACK_AUTHOR_NAME;
+	const name =
+		parts.length < 2 ? parts[0] : `${parts[0]} ${[...parts[parts.length - 1]][0].toUpperCase()}.`;
+	return name.length > MAX_NAME_LENGTH ? FALLBACK_AUTHOR_NAME : name;
 }
 
 export type NewGuestReviewInput = {
@@ -253,8 +273,7 @@ export async function createGuestReview(
 			return row;
 		});
 	} catch (error) {
-		const e = error as { code?: string; cause?: { code?: string } };
-		if ((e.cause?.code ?? e.code) === '23505') {
+		if (pgErrorCode(error) === '23505') {
 			throw new ReviewAlreadyExistsError(String(raw.bookingRequestId));
 		}
 		throw error;
@@ -268,8 +287,10 @@ export type NewImportedReviewInput = {
 	title?: string | null;
 	body: string;
 	authorName: string;
-	/** `YYYY-MM-DD`, when the reviewer stayed, if known. */
+	/** `YYYY-MM-DD`, when the reviewer stayed, if known. Not after today in the property's zone. */
 	stayedOn?: string | null;
+	/** Test seam: the clock used for "not in the future". */
+	now?: Date;
 };
 
 /**
@@ -296,6 +317,11 @@ export async function createImportedReview(
 	return tx.transaction(async (inner) => {
 		const property = await findPropertyById(String(propertyId), inner, { lock: 'share' });
 		if (!property) throw new ReviewPropertyNotFoundError(String(propertyId));
+		if (stayedOn !== null && stayedOn > todayInZone(property.timezone, clock(raw.now))) {
+			throw new ReviewValidationError(
+				"stayedOn must not be in the future in the property's timezone"
+			);
+		}
 		const [row] = await inner
 			.insert(review)
 			.values({ ...values, propertyId: property.id, source: 'imported', stayedOn })
@@ -329,27 +355,30 @@ async function moderate(
 		if (current.status !== 'pending') throw new ReviewTransitionError(current.status, to);
 		const [row] = await inner
 			.update(review)
-			.set({ status: to, publishedAt: to === 'published' ? at : null })
+			.set({ status: to, moderatedAt: at, publishedAt: to === 'published' ? at : null })
 			.where(eq(review.id, reviewId))
 			.returning();
 		return row;
 	});
 }
 
-/** `pending` -> `published`, stamping `published_at` from `now`. A platform action. */
+/**
+ * `pending` -> `published`, stamping `published_at` and `moderated_at` from `now`. A platform
+ * action.
+ */
 export function publishReview(reviewId: string, now?: Date, tx: Executor = db): Promise<Review> {
 	return moderate(reviewId, 'published', now, tx);
 }
 
-/** `pending` -> `rejected`. A platform action. */
+/** `pending` -> `rejected`, stamping `moderated_at` from `now`. A platform action. */
 export function rejectReview(reviewId: string, now?: Date, tx: Executor = db): Promise<Review> {
 	return moderate(reviewId, 'rejected', now, tx);
 }
 
 /**
  * Set or clear the host's reply. A blank or `null` reply clears it (and `host_replied_at`); a set
- * reply stamps `host_replied_at` from `now`. Only a `published` review takes a new reply, so a
- * host cannot answer what the public cannot see; clearing is always allowed.
+ * reply stamps `host_replied_at` from `now`. Only a `published` review takes a new reply
+ * ({@link ReviewNotPublishedError} otherwise); clearing is always allowed.
  */
 export async function setHostReply(
 	reviewId: string,
@@ -362,7 +391,7 @@ export async function setHostReply(
 	return tx.transaction(async (inner) => {
 		const current = await lockReview(reviewId, inner);
 		if (text !== null && current.status !== 'published') {
-			throw new ReviewTransitionError(current.status, 'published');
+			throw new ReviewNotPublishedError(reviewId, current.status);
 		}
 		const [row] = await inner
 			.update(review)
@@ -407,24 +436,29 @@ export type ListReviewsOptions = {
 
 export type ReviewPage = { items: Review[]; nextCursor: string | null };
 
-/** The date a review is ordered by: when it went live, or (for unpublished ones) when created. */
-const orderKey = (status: ReviewStatus) =>
-	sql`date_trunc('milliseconds', ${status === 'published' ? review.publishedAt : review.createdAt})`;
+/** A timestamp with microseconds, as Postgres holds it: what a cursor must carry to be exact. */
+const CURSOR_AT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{6}Z$/;
 
-function parseCursor(cursor: string): { at: Date; id: string } {
-	const [iso, id, ...rest] = cursor.split('|');
-	const at = new Date(iso ?? '');
-	if (rest.length > 0 || Number.isNaN(at.getTime()) || !isUuid(id)) {
+function parseCursor(cursor: string): { at: string; id: string } {
+	const [at, id, ...rest] = cursor.split('|');
+	if (rest.length > 0 || !CURSOR_AT.test(at ?? '') || !isUuid(id)) {
 		throw new ReviewValidationError('cursor is not valid');
 	}
 	return { at, id };
 }
 
 /**
- * A property's reviews, newest first (by `published_at` for `published`, else `created_at`), as a
- * keyset page on `(timestamp, id)`: pass the returned `nextCursor` to get the next page, `null`
- * means the end. The order key is compared at millisecond precision, which is what the repo
- * writes and what a cursor can carry.
+ * A property's reviews as a keyset page: pass the returned `nextCursor` to get the next page,
+ * `null` means the end.
+ *
+ * - `published` (the default, the public view): newest first, `published_at DESC NULLS LAST, id
+ *   DESC`, matching `review_property_id_status_published_at_idx` exactly.
+ * - `pending` and `rejected` (the moderation queue): oldest first, `created_at ASC, id ASC`, so the
+ *   backlog is worked first-in-first-out; served by `review_property_id_status_created_at_idx`.
+ *
+ * The comparison is on the raw column. The cursor carries the timestamp as Postgres read it
+ * back, to the microsecond, so a JS `Date` (milliseconds) never rounds it and no row is skipped
+ * or repeated.
  */
 export async function listReviews(
 	propertyId: string,
@@ -444,26 +478,39 @@ export async function listReviews(
 		options.cursor === undefined || options.cursor === null ? null : parseCursor(options.cursor);
 	if (!isUuid(propertyId)) return { items: [], nextCursor: null };
 
-	const key = orderKey(status);
+	const newestFirst = status === 'published';
+	const column = newestFirst ? review.publishedAt : review.createdAt;
 	const conditions: SQL[] = [eq(review.propertyId, propertyId), eq(review.status, status)];
 	if (options.source !== undefined) conditions.push(eq(review.source, options.source));
 	if (cursor) {
+		const at = sql`${cursor.at}::timestamptz`;
+		const compare = newestFirst ? lt : gt;
 		conditions.push(
-			sql`(${key}, ${review.id}) < (${cursor.at.toISOString()}::timestamptz, ${cursor.id}::uuid)`
+			or(compare(column, at), and(eq(column, at), compare(review.id, cursor.id))) as SQL
 		);
 	}
 	const rows = await tx
-		.select()
+		.select({
+			...getTableColumns(review),
+			cursorAt: sql<string>`to_char(${column} at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')`
+		})
 		.from(review)
 		.where(and(...conditions))
-		.orderBy(desc(key), desc(review.id))
+		.orderBy(
+			...(newestFirst
+				? [sql`${column} DESC NULLS LAST`, desc(review.id)]
+				: [asc(column), asc(review.id)])
+		)
 		.limit(limit + 1);
-	const items = rows.slice(0, limit);
-	const last = items[items.length - 1];
-	const lastAt = last && (status === 'published' ? last.publishedAt : last.createdAt);
+	const page = rows.slice(0, limit);
+	const last = page[page.length - 1];
 	return {
-		items,
-		nextCursor: rows.length > limit && last && lastAt ? `${lastAt.toISOString()}|${last.id}` : null
+		items: page.map((row) => {
+			const { cursorAt, ...item } = row;
+			void cursorAt;
+			return item;
+		}),
+		nextCursor: rows.length > limit && last ? `${last.cursorAt}|${last.id}` : null
 	};
 }
 

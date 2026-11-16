@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { db } from '$lib/server/test/db';
+import { pgErrorCode } from '$lib/server/db/helpers';
 import { bookingRequest, property, review, user } from '$lib/server/db/schema';
 import { insertProperty, publishProperty } from '$lib/server/property/property.repo';
 import {
@@ -23,6 +24,7 @@ import {
 	ReviewBookingNotFoundError,
 	ReviewBookingPropertyError,
 	ReviewNotFoundError,
+	ReviewNotPublishedError,
 	ReviewPropertyNotFoundError,
 	ReviewSourceError,
 	ReviewStayNotCompleteError,
@@ -81,8 +83,7 @@ async function pgCode(promise: Promise<unknown>): Promise<string | undefined> {
 	try {
 		await promise;
 	} catch (error) {
-		const e = error as { code?: string; cause?: { code?: string } };
-		return e.cause?.code ?? e.code;
+		return pgErrorCode(error);
 	}
 	return undefined;
 }
@@ -150,13 +151,29 @@ describe('review CHECK constraints', () => {
 	it('sets published_at if and only if the status is published', async () => {
 		const p = await makeProperty();
 		for (const overrides of [
-			{ status: 'published' as const },
+			{ status: 'published' as const, moderatedAt: new Date() },
 			{ status: 'pending' as const, publishedAt: new Date() },
-			{ status: 'rejected' as const, publishedAt: new Date() }
+			{ status: 'rejected' as const, moderatedAt: new Date(), publishedAt: new Date() }
 		]) {
 			expect(await pgCode(db.insert(review).values(rawRow(p.id, overrides)))).toBe(CHECK_VIOLATION);
 		}
-		await db.insert(review).values(rawRow(p.id, { status: 'published', publishedAt: new Date() }));
+		const now = new Date();
+		await db
+			.insert(review)
+			.values(rawRow(p.id, { status: 'published', moderatedAt: now, publishedAt: now }));
+	});
+
+	it('sets moderated_at if and only if the status is not pending', async () => {
+		const p = await makeProperty();
+		const now = new Date();
+		for (const overrides of [
+			{ status: 'pending' as const, moderatedAt: now },
+			{ status: 'rejected' as const },
+			{ status: 'published' as const, publishedAt: now }
+		]) {
+			expect(await pgCode(db.insert(review).values(rawRow(p.id, overrides)))).toBe(CHECK_VIOLATION);
+		}
+		await db.insert(review).values(rawRow(p.id, { status: 'rejected', moderatedAt: now }));
 	});
 });
 
@@ -336,19 +353,45 @@ describe('createGuestReview (verified stay)', () => {
 		expect(displayName('  Ana  Maria  de la Cruz ')).toBe('Ana C.');
 		expect(displayName('Cher')).toBe('Cher');
 	});
+
+	it('never shows an email-like, blank or oversized guest name', async () => {
+		expect(displayName('aisha@example.com')).toBe('Guest');
+		expect(displayName('Aisha aisha@example.com')).toBe('Aisha');
+		expect(displayName('   ')).toBe('Guest');
+		expect(displayName('x'.repeat(201))).toBe('Guest');
+
+		const p = await makeProperty();
+		const emailName = await acceptedBooking(p.id, { guestName: 'aisha@example.com' });
+		const long = await acceptedBooking(p.id, { guestEmail: 'b@example.com' });
+		// The repo caps guest names at 200, so push an oversized one in directly.
+		await db
+			.update(bookingRequest)
+			.set({ guestName: 'y'.repeat(300) })
+			.where(eq(bookingRequest.id, long.id));
+		for (const booking of [emailName, long]) {
+			const r = await createGuestReview({
+				propertyId: p.id,
+				bookingRequestId: booking.id,
+				rating: 5,
+				body: 'x',
+				now: AFTER
+			});
+			expect(r.authorName).toBe('Guest');
+		}
+	});
 });
 
 describe('createImportedReview', () => {
 	it('creates a pending imported review with its origin and no booking', async () => {
 		const p = await makeProperty();
-		const r = await importedReview(p.id, { origin: ' Booking.com ', stayedOn: '2029-01-02' });
+		const r = await importedReview(p.id, { origin: ' Booking.com ', stayedOn: '2025-01-02' });
 		expect(r).toMatchObject({
 			source: 'imported',
 			origin: 'Booking.com',
 			bookingRequestId: null,
 			status: 'pending',
 			publishedAt: null,
-			stayedOn: '2029-01-02'
+			stayedOn: '2025-01-02'
 		});
 	});
 
@@ -360,6 +403,20 @@ describe('createImportedReview', () => {
 		await expect(importedReview(p.id, { stayedOn: '2029-13-40' })).rejects.toBeInstanceOf(
 			ReviewValidationError
 		);
+	});
+
+	it("refuses a stay date in the future in the property's timezone", async () => {
+		// now = 2030-06-10T12:00Z: already 2030-06-11 in Kiritimati, still 2030-06-10 in Pago Pago.
+		const now = new Date('2030-06-10T12:00:00Z');
+		const ahead = await makeProperty('Ahead', 'Pacific/Kiritimati');
+		const behind = await makeProperty('Behind', 'Pacific/Pago_Pago');
+		expect((await importedReview(ahead.id, { stayedOn: '2030-06-11', now })).stayedOn).toBe(
+			'2030-06-11'
+		);
+		await expect(importedReview(behind.id, { stayedOn: '2030-06-11', now })).rejects.toBeInstanceOf(
+			ReviewValidationError
+		);
+		await importedReview(behind.id, { stayedOn: '2030-06-10', now });
 	});
 
 	it('refuses an unknown property', async () => {
@@ -378,13 +435,16 @@ describe('moderation', () => {
 		const published = await publishReview(r.id, at);
 		expect(published.status).toBe('published');
 		expect(published.publishedAt).toEqual(at);
+		expect(published.moderatedAt).toEqual(at);
 	});
 
 	it('rejects a pending review without a published_at', async () => {
 		const p = await makeProperty();
 		const r = await importedReview(p.id);
-		const rejected = await rejectReview(r.id);
+		const at = new Date('2030-07-01T09:00:00Z');
+		const rejected = await rejectReview(r.id, at);
 		expect(rejected.status).toBe('rejected');
+		expect(rejected.moderatedAt).toEqual(at);
 		expect(rejected.publishedAt).toBeNull();
 	});
 
@@ -431,7 +491,7 @@ describe('host reply', () => {
 	it('refuses a new reply on a review that is not published', async () => {
 		const p = await makeProperty();
 		const r = await importedReview(p.id);
-		await expect(setHostReply(r.id, 'hello')).rejects.toBeInstanceOf(ReviewTransitionError);
+		await expect(setHostReply(r.id, 'hello')).rejects.toBeInstanceOf(ReviewNotPublishedError);
 		await expect(setHostReply(r.id, null)).resolves.toMatchObject({ hostReply: null });
 	});
 
@@ -544,11 +604,80 @@ describe('listReviews', () => {
 		expect(seen).toEqual(all);
 	});
 
+	it('pages exactly across timestamps that differ only below a millisecond', async () => {
+		const p = await makeProperty();
+		const ids: string[] = [];
+		for (let i = 0; i < 4; i += 1) {
+			const r = await importedReview(p.id);
+			await publishReview(r.id, new Date('2030-07-05T00:00:00.123Z'));
+			// 0.123001, 0.123002, ...: the same millisecond, different microseconds.
+			await db.execute(
+				sql`UPDATE review SET published_at = '2030-07-05 00:00:00.123000+00'::timestamptz + (${i + 1} * interval '1 microsecond') WHERE id = ${r.id}`
+			);
+			ids.push(r.id);
+		}
+		const seen: string[] = [];
+		let cursor: string | null = null;
+		do {
+			const page = await listReviews(p.id, { limit: 1, cursor });
+			seen.push(...page.items.map((r) => r.id));
+			cursor = page.nextCursor;
+		} while (cursor);
+		expect(seen).toEqual([...ids].reverse());
+	});
+
+	it('lists the moderation queue oldest first and pages it', async () => {
+		const p = await makeProperty();
+		const ids: string[] = [];
+		for (let i = 0; i < 4; i += 1) {
+			const r = await importedReview(p.id, { body: `Queue ${i}` });
+			await db.execute(
+				sql`UPDATE review SET created_at = '2030-01-01 00:00:00+00'::timestamptz + (${i} * interval '1 hour') WHERE id = ${r.id}`
+			);
+			ids.push(r.id);
+		}
+		const rejected = await importedReview(p.id);
+		await rejectReview(rejected.id);
+
+		expect((await listReviews(p.id, { status: 'pending' })).items.map((r) => r.id)).toEqual(ids);
+		const seen: string[] = [];
+		let cursor: string | null = null;
+		do {
+			const page = await listReviews(p.id, { status: 'pending', limit: 3, cursor });
+			seen.push(...page.items.map((r) => r.id));
+			cursor = page.nextCursor;
+		} while (cursor);
+		expect(seen).toEqual(ids);
+		expect((await listReviews(p.id, { status: 'rejected' })).items.map((r) => r.id)).toEqual([
+			rejected.id
+		]);
+	});
+
+	it('uses the (property, status, ...) indexes for both listings', async () => {
+		const p = await makeProperty();
+		const plan = (query: ReturnType<typeof sql>) =>
+			db.transaction(async (tx) => {
+				// A near-empty table would pick a seq scan; this asks which index the query can use.
+				await tx.execute(sql`SET LOCAL enable_seqscan = off`);
+				const rows = await tx.execute<{ 'QUERY PLAN': string }>(query);
+				return rows.map((r) => r['QUERY PLAN']).join('\n');
+			});
+		const published = await plan(
+			sql`EXPLAIN SELECT * FROM review WHERE property_id = ${p.id} AND status = 'published' ORDER BY published_at DESC NULLS LAST, id DESC LIMIT 21`
+		);
+		expect(published).toContain('review_property_id_status_published_at_idx');
+		const queue = await plan(
+			sql`EXPLAIN SELECT * FROM review WHERE property_id = ${p.id} AND status = 'pending' ORDER BY created_at ASC, id ASC LIMIT 21`
+		);
+		expect(queue).toContain('review_property_id_status_created_at_idx');
+	});
+
 	it('rejects a bad cursor, limit, status or source', async () => {
 		const p = await makeProperty();
 		for (const options of [
 			{ cursor: 'garbage' },
 			{ cursor: 'x|y' },
+			{ cursor: '2030-07-05T00:00:00.123Z|00000000-0000-4000-8000-000000000000' },
 			{ limit: 0 },
 			{ limit: 101 },
 			{ limit: 1.5 },

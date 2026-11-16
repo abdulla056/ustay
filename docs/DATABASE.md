@@ -297,12 +297,16 @@ owner enters. Code: `db/review.schema.ts`, `review/review.repo.ts`, pure roundin
   returns `guestCount` and `importedCount` separately for that reason.
 - **Columns.** `rating` is a `smallint`, whole stars 1 to 5. `body` and `author_name` are required
   and non-blank; `title` is optional. For a guest review `author_name` is a display name such as
-  "Aisha R." (`displayName()` makes it from the booking's guest name), never the email.
-  `stayed_on` is a date copied from the booking's `check_in`; `author_user_id` copies
-  `guest_user_id` (set null on account delete).
+  "Aisha R." (`displayName()` makes it from the booking's guest name), never the email: tokens
+  containing `@` are dropped, and a blank or over-long result becomes `Guest`. `stayed_on` is a
+  date: for a guest review the booking's `check_in`; for an imported one it is optional and may
+  not be after today in the property's timezone. `author_user_id` copies `guest_user_id` (set
+  null on account delete). `moderated_at` is when the platform published or rejected the review
+  (null while `pending`); `published_at` is the same instant for a published review.
 - **CHECKs.** A guest review has no `origin`; an imported review has a non-blank `origin` and no
   booking; `host_reply` and `host_replied_at` are both set or both null (and the reply is
-  non-blank); `published_at` is set if and only if `status = 'published'`. The "a guest review has
+  non-blank); `published_at` is set if and only if `status = 'published'`; `moderated_at` is set
+  if and only if `status <> 'pending'`. The "a guest review has
   a booking" rule is the repo's, at creation, because the FK may later be nulled.
 - **Verified-stay rule.** `createGuestReview` needs: the booking exists
   (`ReviewBookingNotFoundError`), belongs to this property (`ReviewBookingPropertyError`), is a
@@ -313,10 +317,10 @@ owner enters. Code: `db/review.schema.ts`, `review/review.repo.ts`, pure roundin
 - **Moderation.** Every review starts `pending` (the `review_status` default), imported ones too,
   so an owner cannot put a fake review live. `publishReview` / `rejectReview` are platform actions,
   allowed only from `pending` (`ReviewTransitionError`), and take an injected `now` that stamps
-  `published_at`. **Owners cannot edit or delete guest reviews**: the repo has no update for
+  `moderated_at` (and `published_at` on publish). **Owners cannot edit or delete guest reviews**: the repo has no update for
   `rating`, `title` or `body`, and `deleteImportedReview` refuses guest reviews
   (`ReviewSourceError`). An owner's tools are the host reply (`setHostReply`, which stamps
-  `host_replied_at`; a blank or `null` reply clears it; a new reply needs a `published` review)
+  `host_replied_at`; a blank or `null` reply clears it; a new reply needs a `published` review, else `ReviewNotPublishedError`)
   and deleting imported reviews. **Routes must enforce who calls what**: moderation is not an
   owner action, replies and imported deletes are the property owner's, and writing a guest
   review is the verified guest's.
@@ -326,9 +330,13 @@ owner enters. Code: `db/review.schema.ts`, `review/review.repo.ts`, pure roundin
   is cached on `property`. Add a cached or materialised summary when discovery sorts by rating
   (Phase 5); at MVP scale one indexed aggregate is cheap.
 - **Reads.** `listReviews(propertyId, { status = 'published', source, limit, cursor })` returns
-  `{ items, nextCursor }`, newest first, as a keyset page on `(timestamp, id)` (`published_at`
-  for published reviews, `created_at` for the moderation queue), compared at millisecond
-  precision. Index: `(property_id, status, published_at desc)`.
+  `{ items, nextCursor }` as a keyset page on the raw column plus `id`. Published reviews (the
+  public view) are newest first: `published_at DESC NULLS LAST, id DESC`, on
+  `(property_id, status, published_at desc)`. Pending and rejected reviews (the moderation queue)
+  are oldest first, `created_at ASC, id ASC`, so the backlog is worked first in, first out, on
+  `(property_id, status, created_at)`. The cursor carries the timestamp as Postgres read it back
+  (microsecond ISO string), so paging never skips or repeats a row; a db test runs `EXPLAIN` on
+  both orderings and checks the indexes are used.
 - Relations: `property.reviews`, `review.property`, `review.bookingRequest`, `review.authorUser`,
   `bookingRequest.review`. Deleting a property cascades to its reviews.
 

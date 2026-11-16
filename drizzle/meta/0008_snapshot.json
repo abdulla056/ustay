@@ -1,5 +1,5 @@
 {
-  "id": "da5b8a1d-7f05-4fb2-8de3-277f75558566",
+  "id": "272901bd-06e9-4059-862d-a47e84288443",
   "prevId": "9db8787a-89b1-4b85-ba2a-b0aba4cfb0d0",
   "version": "7",
   "dialect": "postgresql",
@@ -2615,6 +2615,12 @@
           "notNull": true,
           "default": "'pending'"
         },
+        "moderated_at": {
+          "name": "moderated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
         "published_at": {
           "name": "published_at",
           "type": "timestamp with time zone",
@@ -2668,6 +2674,33 @@
               "expression": "published_at",
               "isExpression": false,
               "asc": false,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "review_property_id_status_created_at_idx": {
+          "name": "review_property_id_status_created_at_idx",
+          "columns": [
+            {
+              "expression": "property_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
               "nulls": "last"
             }
           ],
@@ -2757,6 +2790,10 @@
         "review_published_at_check": {
           "name": "review_published_at_check",
           "value": "(\"review\".\"status\" = 'published') = (\"review\".\"published_at\" IS NOT NULL)"
+        },
+        "review_moderated_at_check": {
+          "name": "review_moderated_at_check",
+          "value": "(\"review\".\"status\" = 'pending') = (\"review\".\"moderated_at\" IS NULL)"
         }
       },
       "isRLSEnabled": false

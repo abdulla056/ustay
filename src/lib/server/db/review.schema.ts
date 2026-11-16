@@ -58,6 +58,8 @@ export const review = pgTable(
 		/** Calendar date; for a guest review, the booking's `check_in`. */
 		stayedOn: date('stayed_on', { mode: 'string' }),
 		status: reviewStatus('status').notNull().default('pending'),
+		/** When the platform published or rejected it; null while `pending`. For audit and the queue. */
+		moderatedAt: timestamp('moderated_at', { withTimezone: true }),
 		publishedAt: timestamp('published_at', { withTimezone: true }),
 		hostReply: text('host_reply'),
 		hostRepliedAt: timestamp('host_replied_at', { withTimezone: true }),
@@ -82,10 +84,14 @@ export const review = pgTable(
 			'review_published_at_check',
 			sql`(${t.status} = 'published') = (${t.publishedAt} IS NOT NULL)`
 		),
+		check('review_moderated_at_check', sql`(${t.status} = 'pending') = (${t.moderatedAt} IS NULL)`),
+		// Public list: newest published first.
 		index('review_property_id_status_published_at_idx').on(
 			t.propertyId,
 			t.status,
 			t.publishedAt.desc()
-		)
+		),
+		// Moderation queue: oldest pending / rejected first.
+		index('review_property_id_status_created_at_idx').on(t.propertyId, t.status, t.createdAt)
 	]
 );
