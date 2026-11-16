@@ -359,6 +359,18 @@ export async function listRoomMedia(roomId: string, tx: Executor = db) {
 		.orderBy(asc(roomMedia.sortOrder));
 }
 
+/** Several rooms' media in one query, each row carrying its `roomId`, ordered by room then position. */
+export async function listMediaForRooms(roomIds: string[], tx: Executor = db) {
+	const ids = roomIds.filter(isUuid);
+	if (ids.length === 0) return [];
+	return tx
+		.select({ ...assetColumns, roomId: roomMedia.roomId, sortOrder: roomMedia.sortOrder })
+		.from(roomMedia)
+		.innerJoin(mediaAsset, eq(roomMedia.mediaAssetId, mediaAsset.id))
+		.where(inArray(roomMedia.roomId, ids))
+		.orderBy(asc(roomMedia.roomId), asc(roomMedia.sortOrder));
+}
+
 /**
  * Replace the room's media with `assetIds`, in that order. The assets must be in the library of
  * the room's property, else {@link MediaNotInLibraryError}. Throws if the room does not exist.

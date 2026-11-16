@@ -3,7 +3,7 @@
  * `property_amenity` and `room_amenity`. Conventions: `docs/ARCHITECTURE.md` ("Data access /
  * repository layer") and `docs/DATABASE.md`. The executor is the last param.
  */
-import { asc, eq } from 'drizzle-orm';
+import { asc, eq, inArray } from 'drizzle-orm';
 import { db, type Executor } from '$lib/server/db';
 import { amenity, propertyAmenity, roomAmenity } from '$lib/server/db/schema';
 
@@ -83,6 +83,26 @@ export async function listRoomAmenities(roomId: string, tx: Executor = db) {
 		.from(roomAmenity)
 		.innerJoin(amenity, eq(roomAmenity.amenityId, amenity.id))
 		.where(eq(roomAmenity.roomId, roomId))
+		.orderBy(...amenityOrder);
+}
+
+/** Several rooms' amenities in one query, each row carrying its `roomId`. */
+export async function listAmenitiesForRooms(roomIds: string[], tx: Executor = db) {
+	if (roomIds.length === 0) return [];
+	return tx
+		.select({
+			roomId: roomAmenity.roomId,
+			id: amenity.id,
+			key: amenity.key,
+			name: amenity.name,
+			category: amenity.category,
+			icon: amenity.icon,
+			sortOrder: amenity.sortOrder,
+			note: roomAmenity.note
+		})
+		.from(roomAmenity)
+		.innerJoin(amenity, eq(roomAmenity.amenityId, amenity.id))
+		.where(inArray(roomAmenity.roomId, roomIds))
 		.orderBy(...amenityOrder);
 }
 

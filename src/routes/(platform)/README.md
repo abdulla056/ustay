@@ -7,5 +7,5 @@ Owns the **platform chrome** in `+layout.svelte` — global header/footer, the L
 and the dark→light tonal scroll from `DESIGN.md`. Anything that should feel like _Ustay_ rather than
 like an individual property belongs here.
 
-Note `/stays` (the index) lives here while `/stays/[property]` lives in `(microsite)` — a property
+Note `/stays` (the index) lives here while `/s/[slug]` lives in `(microsite)` — a property
 page wears the property's chrome, not ours. See `docs/ARCHITECTURE.md`.
