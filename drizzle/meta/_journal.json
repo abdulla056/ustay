@@ -57,6 +57,13 @@
       "when": 1794504630362,
       "tag": "0007_handy_vulture",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1794846498986,
+      "tag": "0008_busy_selene",
+      "breakpoints": true
     }
   ]
 }
