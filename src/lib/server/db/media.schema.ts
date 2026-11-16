@@ -32,6 +32,7 @@ import {
 	uniqueIndex
 } from 'drizzle-orm/pg-core';
 import { id, timestamps, uuidRef } from './helpers';
+import { MEDIA_URL_ABSOLUTE_PATTERN, MEDIA_URL_LOCAL_PATTERN } from './media-url';
 import { property } from './property.schema';
 import { room } from './room.schema';
 
@@ -49,8 +50,8 @@ export const mediaAsset = pgTable(
 			.references(() => property.id, { onDelete: 'cascade' }),
 		kind: mediaKind('kind').notNull(),
 		/**
-		 * Public `http(s)` URL, or a site-relative path (`/prototype/x.jpg`, served from this app's
-		 * `static/`). A protocol-relative `//host/x` is refused: it resolves to another origin.
+		 * Public `http(s)` URL, or a file under `/prototype/` (served from this app's `static/`).
+		 * The exact rule is in `./media-url`; the database CHECK and the repo share it.
 		 */
 		url: text('url').notNull(),
 		/** R2 object key once uploads exist (Phase 3/6). Null for external assets. */
@@ -82,7 +83,10 @@ export const mediaAsset = pgTable(
 			columns: [t.propertyId, t.posterAssetId],
 			foreignColumns: [t.propertyId, t.id]
 		}).onDelete('set null'),
-		check('media_asset_url_check', sql`${t.url} ~ '^(https?://|/[^/])'`),
+		check(
+			'media_asset_url_check',
+			sql`${t.url} ~ ${sql.raw(`'${MEDIA_URL_ABSOLUTE_PATTERN}'`)} OR ${t.url} ~ ${sql.raw(`'${MEDIA_URL_LOCAL_PATTERN}'`)}`
+		),
 		check('media_asset_width_check', sql`${t.width} > 0`),
 		check('media_asset_height_check', sql`${t.height} > 0`),
 		check('media_asset_alt_text_check', sql`${t.altText} ~ '\\S'`),

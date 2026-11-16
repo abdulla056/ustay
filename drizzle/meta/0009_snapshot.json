@@ -1,5 +1,5 @@
 {
-  "id": "50cd721d-e543-40f7-98f7-9530c45aab93",
+  "id": "571c7520-40f1-4cbd-a9ad-0faec5d14400",
   "prevId": "272901bd-06e9-4059-862d-a47e84288443",
   "version": "7",
   "dialect": "postgresql",
@@ -1796,7 +1796,7 @@
       "checkConstraints": {
         "media_asset_url_check": {
           "name": "media_asset_url_check",
-          "value": "\"media_asset\".\"url\" ~ '^(https?://|/[^/])'"
+          "value": "\"media_asset\".\"url\" ~ '^https?://[^\\s\\\\]+$' OR \"media_asset\".\"url\" ~ '^/prototype/[A-Za-z0-9_-]+(/[A-Za-z0-9_-]+)*\\.(jpe?g|png|webp|avif|mp4|webm)$'"
         },
         "media_asset_width_check": {
           "name": "media_asset_width_check",
