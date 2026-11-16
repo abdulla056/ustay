@@ -48,7 +48,10 @@ export const mediaAsset = pgTable(
 			.notNull()
 			.references(() => property.id, { onDelete: 'cascade' }),
 		kind: mediaKind('kind').notNull(),
-		/** Public `http(s)` URL of the file. External for the MVP. */
+		/**
+		 * Public `http(s)` URL, or a site-relative path (`/prototype/x.jpg`, served from this app's
+		 * `static/`). A protocol-relative `//host/x` is refused: it resolves to another origin.
+		 */
 		url: text('url').notNull(),
 		/** R2 object key once uploads exist (Phase 3/6). Null for external assets. */
 		storageKey: text('storage_key').unique(),
@@ -79,7 +82,7 @@ export const mediaAsset = pgTable(
 			columns: [t.propertyId, t.posterAssetId],
 			foreignColumns: [t.propertyId, t.id]
 		}).onDelete('set null'),
-		check('media_asset_url_check', sql`${t.url} ~ '^https?://'`),
+		check('media_asset_url_check', sql`${t.url} ~ '^(https?://|/[^/])'`),
 		check('media_asset_width_check', sql`${t.width} > 0`),
 		check('media_asset_height_check', sql`${t.height} > 0`),
 		check('media_asset_alt_text_check', sql`${t.altText} ~ '\\S'`),

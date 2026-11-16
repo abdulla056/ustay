@@ -98,7 +98,7 @@ describe('media_asset table shape', () => {
 
 	it('has the url, dimension, alt-text, focal and video checks', () => {
 		expect(checks(mediaAsset)).toEqual({
-			media_asset_url_check: `"media_asset"."url" ~ '^https?://'`,
+			media_asset_url_check: `"media_asset"."url" ~ '^(https?://|/[^/])'`,
 			media_asset_width_check: `"media_asset"."width" > 0`,
 			media_asset_height_check: `"media_asset"."height" > 0`,
 			media_asset_alt_text_check: `"media_asset"."alt_text" ~ '\\S'`,

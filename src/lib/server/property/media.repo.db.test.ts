@@ -173,6 +173,32 @@ describe('alt-text and dimension checks', () => {
 	});
 });
 
+describe('url check', () => {
+	it('accepts an http(s) URL and a site-relative path', async () => {
+		const p = await makeProperty('Url Villa');
+		for (const url of [
+			'https://cdn.example.com/a.jpg',
+			'http://localhost:5173/a.jpg',
+			'/prototype/a.jpg'
+		]) {
+			expect((await makeImage(p.id, { url })).url).toBe(url);
+		}
+	});
+
+	it('rejects a protocol-relative URL, a scheme other than http(s), and a path without a leading slash', async () => {
+		const p = await makeProperty('Url Villa Two');
+		for (const url of [
+			'//evil.example/x.jpg',
+			'javascript:alert(1)',
+			'prototype/a.jpg',
+			'./a.jpg',
+			''
+		]) {
+			expect(await pgCode(makeImage(p.id, { url }))).toBe(CHECK_VIOLATION);
+		}
+	});
+});
+
 describe('property placements', () => {
 	it('orders the gallery as given, dedupes, replaces, and clears', async () => {
 		const p = await makeProperty('Gallery');

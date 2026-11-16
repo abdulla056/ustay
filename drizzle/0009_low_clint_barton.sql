@@ -1,0 +1,2 @@
+ALTER TABLE "media_asset" DROP CONSTRAINT "media_asset_url_check";--> statement-breakpoint
+ALTER TABLE "media_asset" ADD CONSTRAINT "media_asset_url_check" CHECK ("media_asset"."url" ~ '^(https?://|/[^/])');
