@@ -14,6 +14,7 @@ import { assertSeedAllowed } from './guard';
 import { createSeedAuth, createSeedDb, type SeedAuth, type SeedDb } from './client';
 import { seedDevUser, type SeedModuleResult } from './dev-user';
 import { seedAmenities } from './amenities';
+import { seedSampleProperty } from './sample-property';
 
 export type SeedContext = { readonly db: SeedDb; readonly auth: SeedAuth };
 
@@ -24,7 +25,8 @@ export type SeedModule = {
 
 export const seedModules: readonly SeedModule[] = [
 	{ name: 'dev-user', run: (ctx) => seedDevUser(ctx.db, ctx.auth) },
-	{ name: 'amenities', run: (ctx) => seedAmenities(ctx.db) }
+	{ name: 'amenities', run: (ctx) => seedAmenities(ctx.db) },
+	{ name: 'sample-property', run: (ctx) => seedSampleProperty(ctx.db) }
 ];
 
 export async function runSeed(): Promise<void> {

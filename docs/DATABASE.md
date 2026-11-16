@@ -151,6 +151,14 @@ Rules:
 - `DATABASE_URL` must be set for any `db:*` command (`drizzle.config.ts` throws otherwise). Start
   the local database with `bun run db:start` (see `compose.yaml`); copy `.env.example` to `.env`.
 
+## Media URLs (UST-20)
+
+- **`media_asset.url`** is an `http(s)://` URL or a site-relative path (`/prototype/x.jpg`, served
+  from this app's `static/`), enforced by `media_asset_url_check` (`^(https?://|/[^/])`, migration
+  `0009`). A protocol-relative `//host/x` is refused, because it resolves to another origin. The
+  repo does not re-validate it; the database CHECK is the rule, and a bad value surfaces as
+  Postgres error `23514`.
+
 ## Host and story (UST-15)
 
 - **`host_profile`** is 1:1 with `property`: `property_id` is the primary key and a cascading FK.
@@ -342,9 +350,9 @@ owner enters. Code: `db/review.schema.ts`, `review/review.repo.ts`, pure roundin
 
 ## Seeding
 
-`bun run db:seed` and `bun run db:reset` (UST-10) are the harness for local/dev data. Phase 1
-adds the actual domain seed data (UST-20); this section is about the runner and conventions that
-data drops into.
+`bun run db:seed` and `bun run db:reset` (UST-10) are the harness for local/dev data. The
+sample property (UST-20) is the domain seed data; this section also covers the runner and the
+conventions that data drops into.
 
 | Command            | What it does                                                                                |
 | ------------------ | ------------------------------------------------------------------------------------------- |
@@ -377,6 +385,28 @@ data drops into.
   hand-inserting into `user` / `account` — that's the only way the stored hash matches what
   `emailAndPassword` sign-in checks it against later). Idempotent by check-then-create: `email`
   is unique, so a `select` decides whether to call better-auth at all.
+- `sample-property.ts` — the sample property **Rumah Kabus** (UST-20), the Phase 1 exit criterion:
+  one published property with every relation filled, in real copy, for the Phase 2 microsite to be
+  built against. Slug `rumah-kabus` (exported as `SAMPLE_PROPERTY_SLUG`), a fictional highland
+  retreat in the Cameron Highlands (`MYR`, `Asia/Kuala_Lumpur`), owned by the dev user. It has the
+  story, a host profile, 4 rooms (with media and amenities), property amenities with notes, a hero,
+  a 7-image gallery and a thumbnail, a location with `show_exact_location = false`, the
+  `cameron-highlands` destination, 8 attractions, the `editorial` microsite (all 8 sections
+  enabled, gallery `zoom`, accent `forest`), 5 guest reviews (4 published, 1 pending, each backed
+  by an accepted past booking, one with a host reply), 2 imported reviews (Google, Booking.com),
+  and an inbox of one pending future booking and one open question with short threads. The
+  published ratings average 4.7. It is idempotent (skips if the slug exists) and runs in one
+  transaction. Past and future dates are computed in the property's timezone from "now", and
+  access tokens are hashed random bytes whose plain values are discarded. It writes directly with
+  the query builder, so it reproduces what the repos enforce (same-library media, price snapshots
+  of rate x nights, consistent `published_at` / `moderated_at`, display-name authors, 72-hour
+  `expires_at`, lower-cased emails). `seed.db.test.ts` reads it back through the repos.
+- **Imagery** is local: `media_asset.url` is a site-relative path to one of the six photographs in
+  `static/prototype/` (`/prototype/hero-forest.jpg`, ...) with their real pixel sizes, and
+  `storage_key` stays null. Files are reused across placements (several `media_asset` rows may
+  share one file, with their own focal point and alt text). The photographs do not depict
+  Malaysia, so their alt text describes only what is in the frame. No new images and no external
+  URLs, so e2e and offline dev never need the network. Phase 3 brings real owner photography.
 - `reset.ts` — `runReset()`: drop/recreate `public` → `drizzle-kit push --force` → `runSeed()`.
 
 Both entry points are guarded, `NODE_ENV`-checked, and safe to script: `bun run db:seed` /
