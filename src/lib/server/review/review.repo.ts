@@ -20,7 +20,11 @@ import { bookingRequest, review, reviewSources, reviewStatuses } from '$lib/serv
 import { isCalendarDate, todayInZone } from '$lib/server/booking/lifecycle';
 import { findPropertyById } from '$lib/server/property/property.repo';
 import { optionalText, requiredText, type ErrorFactory } from '$lib/server/validate';
+import { displayName, FALLBACK_AUTHOR_NAME, MAX_NAME_LENGTH } from './display-name';
 import { averageRating } from './summary';
+
+// Pure, shared with the seed script; re-exported so existing callers keep one import.
+export { displayName, FALLBACK_AUTHOR_NAME };
 
 export type Review = typeof review.$inferSelect;
 export type ReviewSource = (typeof reviewSources)[number];
@@ -28,7 +32,6 @@ export type ReviewStatus = (typeof reviewStatuses)[number];
 
 const MAX_BODY_LENGTH = 5000;
 const MAX_TITLE_LENGTH = 200;
-const MAX_NAME_LENGTH = 200;
 const MAX_ORIGIN_LENGTH = 100;
 export const DEFAULT_PAGE_SIZE = 20;
 export const MAX_PAGE_SIZE = 100;
@@ -166,25 +169,6 @@ function ratingOf(value: unknown): number {
 
 function clock(value: unknown): Date {
 	return value instanceof Date && !Number.isNaN(value.getTime()) ? value : new Date();
-}
-
-/** The neutral name used when a guest name cannot be shown safely. */
-export const FALLBACK_AUTHOR_NAME = 'Guest';
-
-/**
- * `Aisha Rahman` -> `Aisha R.`; a single name is kept. Any token containing `@` is dropped (a
- * guest may have typed their email as their name), and if nothing usable is left, or the result
- * is longer than the cap, it is {@link FALLBACK_AUTHOR_NAME}. The result is always non-blank,
- * within the cap and free of `@`, so the insert can never trip a CHECK.
- */
-export function displayName(fullName: string): string {
-	const parts = String(fullName ?? '')
-		.split(/\s+/)
-		.filter((part) => part !== '' && !part.includes('@'));
-	if (parts.length === 0) return FALLBACK_AUTHOR_NAME;
-	const name =
-		parts.length < 2 ? parts[0] : `${parts[0]} ${[...parts[parts.length - 1]][0].toUpperCase()}.`;
-	return name.length > MAX_NAME_LENGTH ? FALLBACK_AUTHOR_NAME : name;
 }
 
 export type NewGuestReviewInput = {

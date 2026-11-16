@@ -13,6 +13,7 @@ import {
 	listRoomMedia,
 	MediaNotInLibraryError,
 	MediaPosterError,
+	MediaValidationError,
 	setPropertyGallery,
 	setPropertyHero,
 	setPropertyThumbnail,
@@ -152,11 +153,10 @@ describe('alt-text and dimension checks', () => {
 		expect(await pgCode(makeImage(p.id, { width: null as never }))).toBe(NOT_NULL_VIOLATION);
 	});
 
-	it('rejects an out-of-range or half-set focal point, a non-http url and a non-positive duration', async () => {
+	it('rejects an out-of-range or half-set focal point and a non-positive duration', async () => {
 		const p = await makeProperty('Other checks');
 		expect(await pgCode(makeImage(p.id, { focalX: 1.2, focalY: 0.5 }))).toBe(CHECK_VIOLATION);
 		expect(await pgCode(makeImage(p.id, { focalX: 0.5 }))).toBe(CHECK_VIOLATION);
-		expect(await pgCode(makeImage(p.id, { url: 'javascript:alert(1)' }))).toBe(CHECK_VIOLATION);
 		expect(await pgCode(makeImage(p.id, { durationSeconds: 3 }))).toBe(CHECK_VIOLATION);
 		expect(
 			await pgCode(
@@ -170,6 +170,66 @@ describe('alt-text and dimension checks', () => {
 		const p = await makeProperty('Storage');
 		await makeImage(p.id, { storageKey: 'props/a.jpg' });
 		expect(await pgCode(makeImage(p.id, { storageKey: 'props/a.jpg' }))).toBe(UNIQUE_VIOLATION);
+	});
+});
+
+describe('url rule', () => {
+	const ACCEPTED = [
+		'/prototype/hero-forest.jpg',
+		'/prototype/sub/dir/a_b-c.webp',
+		'https://cdn.example.com/a.jpg',
+		'http://localhost:5173/a.jpg?w=800'
+	];
+	const REJECTED = [
+		'/\\evil.example/x.jpg',
+		'/\tevil',
+		'/\nevil.jpg',
+		'/logout',
+		'/prototype/../x.jpg',
+		'/prototype/a.php',
+		'/prototype/a b.jpg',
+		'prototype/a.jpg',
+		'//evil.example/x.jpg',
+		'javascript:alert(1)',
+		'http://a b',
+		'https://x\\y',
+		'http://a\tb',
+		'https://',
+		''
+	];
+
+	it('accepts an absolute http(s) URL and a file under /prototype/', async () => {
+		const p = await makeProperty('Url Villa');
+		for (const url of ACCEPTED) expect((await makeImage(p.id, { url })).url).toBe(url);
+	});
+
+	it('rejects everything else with a typed MediaValidationError, before the database', async () => {
+		const p = await makeProperty('Url Villa Two');
+		for (const url of REJECTED) {
+			await expect(makeImage(p.id, { url })).rejects.toBeInstanceOf(MediaValidationError);
+		}
+		const ok = await makeImage(p.id);
+		for (const url of REJECTED) {
+			await expect(updateMediaAsset(ok.id, { url })).rejects.toBeInstanceOf(MediaValidationError);
+		}
+		expect((await findMediaAssetById(ok.id))?.url).toBe(ok.url);
+	});
+
+	it('is enforced by the database CHECK too, for writes that bypass the repo', async () => {
+		const p = await makeProperty('Url Villa Three');
+		for (const url of [...REJECTED, ...ACCEPTED]) {
+			const code = await pgCode(
+				db.insert(mediaAsset).values({
+					propertyId: p.id,
+					kind: 'image',
+					url,
+					width: 10,
+					height: 10,
+					altText: 'x'
+				})
+			);
+			expect(code).toBe(REJECTED.includes(url) ? CHECK_VIOLATION : undefined);
+		}
 	});
 });
 

@@ -3,6 +3,7 @@ import { getTableColumns, getTableName } from 'drizzle-orm';
 import { getTableConfig, PgDialect, type PgTable } from 'drizzle-orm/pg-core';
 import { mediaAsset, mediaKind, mediaRole, propertyMedia, roomMedia } from './media.schema';
 import { room } from './room.schema';
+import { MEDIA_URL_ABSOLUTE_PATTERN, MEDIA_URL_LOCAL_PATTERN } from './media-url';
 
 const dialect = new PgDialect();
 
@@ -98,7 +99,7 @@ describe('media_asset table shape', () => {
 
 	it('has the url, dimension, alt-text, focal and video checks', () => {
 		expect(checks(mediaAsset)).toEqual({
-			media_asset_url_check: `"media_asset"."url" ~ '^https?://'`,
+			media_asset_url_check: `"media_asset"."url" ~ '${MEDIA_URL_ABSOLUTE_PATTERN}' OR "media_asset"."url" ~ '${MEDIA_URL_LOCAL_PATTERN}'`,
 			media_asset_width_check: `"media_asset"."width" > 0`,
 			media_asset_height_check: `"media_asset"."height" > 0`,
 			media_asset_alt_text_check: `"media_asset"."alt_text" ~ '\\S'`,

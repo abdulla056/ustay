@@ -11,6 +11,7 @@
 import { and, asc, eq, inArray } from 'drizzle-orm';
 import { db, type Executor } from '$lib/server/db';
 import { isUuid } from '$lib/server/db/helpers';
+import { isValidMediaUrl } from '$lib/server/db/media-url';
 import {
 	attraction,
 	mediaAsset,
@@ -36,6 +37,23 @@ export type MediaAssetPatch = Partial<Omit<NewMediaAssetInput, 'propertyId'>>;
 
 /** Fields a patch may never touch, stripped at runtime (types alone do not stop a cast). */
 const IMMUTABLE_FIELDS = ['propertyId', 'id', 'createdAt'];
+
+/** Thrown for a media field the data model rejects, such as a `url` outside the allowed forms. */
+export class MediaValidationError extends Error {
+	constructor(message: string) {
+		super(message);
+		this.name = 'MediaValidationError';
+	}
+}
+
+/** Reject a `url` that is not an absolute `http(s)` URL or a file under `/prototype/`. */
+function assertMediaUrl(url: unknown): void {
+	if (!isValidMediaUrl(url)) {
+		throw new MediaValidationError(
+			'url must be an http(s) URL without spaces or backslashes, or a file under /prototype/'
+		);
+	}
+}
 
 /** Thrown when an asset id is not in the given property's library (or does not exist). */
 export class MediaNotInLibraryError extends Error {
@@ -165,6 +183,7 @@ export async function findMediaAssetById(id: string, tx: Executor = db) {
 }
 
 export async function insertMediaAsset(input: NewMediaAssetInput, tx: Executor = db) {
+	assertMediaUrl(input.url);
 	return tx.transaction(async (inner) => {
 		if (input.posterAssetId)
 			await assertImageInLibrary(input.propertyId, input.posterAssetId, inner, posterNotImage);
@@ -187,6 +206,7 @@ export async function updateMediaAsset(id: string, patch: MediaAssetPatch, tx: E
 			([key, value]) => value !== undefined && !IMMUTABLE_FIELDS.includes(key)
 		)
 	) as MediaAssetPatch;
+	if (clean.url !== undefined) assertMediaUrl(clean.url);
 	if (Object.keys(clean).length === 0) return findMediaAssetById(id, tx);
 	return tx.transaction(async (inner) => {
 		const [current] = await inner
