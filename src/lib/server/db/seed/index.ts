@@ -39,7 +39,7 @@ export async function runSeed(): Promise<void> {
 		for (const seedModule of seedModules) {
 			const result = await seedModule.run({ db, auth });
 			console.log(
-				`[seed] ${seedModule.name}: ${result.created ? 'created' : 'skipped'} — ${result.detail}`
+				`[seed] ${seedModule.name}: ${result.created ? 'created' : result.refreshed ? 'refreshed' : 'skipped'} — ${result.detail}`
 			);
 		}
 	} finally {

@@ -7,18 +7,30 @@
  * `ctx.db` and the Drizzle query builder, and must therefore produce exactly what the repos would
  * have produced: same-library media, images where an image is required, price snapshots of
  * `nightly_rate_minor x nights`, consistent `published_at` / `moderated_at`, display names (never
- * emails) as review authors, `expires_at` = created + 72 hours, lower-cased emails.
+ * emails) as review authors, `expires_at` = created + 72 hours, lower-cased emails. The pure
+ * helpers it shares with the repos (`booking/lifecycle`, `review/display-name`) are imported, not
+ * copied.
  *
- * Idempotent: if the slug exists the module skips. Everything is written in one transaction, so a
- * failure leaves no half property behind.
+ * Idempotent: if the slug exists the module skips, except that the inbox fixtures (one pending
+ * booking, one open question) are refreshed when they have gone stale, because a pending request
+ * expires after 72 hours and its dates are relative to "now". Everything else is never touched on
+ * a re-run. A first run writes everything in one transaction, so a failure leaves no half property
+ * behind.
  *
  * Imagery: local static files only (`/prototype/*.jpg`, `static/prototype/`), reused across
  * placements. No external URLs, so e2e and offline dev never touch the network.
  */
-import { createHash, randomBytes } from 'node:crypto';
-import { eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import { TEMPLATES } from '../../../features/microsite/registry';
-import { generateReference, nightsBetween, REQUEST_TTL_MS } from '../../booking/lifecycle';
+import {
+	generateAccessToken,
+	generateReference,
+	hashAccessToken,
+	nightsBetween,
+	REQUEST_TTL_MS,
+	todayInZone
+} from '../../booking/lifecycle';
+import { displayName } from '../../review/display-name';
 import {
 	amenity,
 	attraction,
@@ -52,16 +64,11 @@ const TIMEZONE = 'Asia/Kuala_Lumpur';
 const UTC_OFFSET = '+08:00';
 const DAY_MS = 86_400_000;
 
-// --- Dates, computed in the property's timezone ---------------------------------------------
+/** The exact address, which public pages coarsen (decision 8). Attractions are placed from it. */
+const LATITUDE = 4.418234;
+const LONGITUDE = 101.379512;
 
-function todayInZone(now: Date): string {
-	return new Intl.DateTimeFormat('en-CA', {
-		timeZone: TIMEZONE,
-		year: 'numeric',
-		month: '2-digit',
-		day: '2-digit'
-	}).format(now);
-}
+// --- Dates, computed in the property's timezone ---------------------------------------------
 
 /** `YYYY-MM-DD` plus whole days (negative for the past). */
 function addDays(date: string, days: number): string {
@@ -74,6 +81,16 @@ function at(date: string, time = '10:00'): Date {
 }
 
 const minutes = (date: Date, n: number) => new Date(date.getTime() + n * 60_000);
+
+/** A point `north` and `east` metres from the exact address, to six decimal places. */
+function pointFrom(north: number, east: number): { latitude: number; longitude: number } {
+	const metresPerDegree = 111_320;
+	const round = (n: number) => Math.round(n * 1e6) / 1e6;
+	return {
+		latitude: round(LATITUDE + north / metresPerDegree),
+		longitude: round(LONGITUDE + east / (metresPerDegree * Math.cos((LATITUDE * Math.PI) / 180)))
+	};
+}
 
 // --- Images ---------------------------------------------------------------------------------
 
@@ -167,13 +184,13 @@ const STORY_BODY = `Cheong Yew Meng built Rumah Kabus in 1954. He was a tea tast
 
 He built it with what the highlands offered: meranti from a sawmill at Ringlet, granite from the stream bed for the chimney, and roof tiles carried up the hill on the back of the estate lorry. The floorboards are the originals. They are wide, dark and a little uneven, and they creak in the same places they always did. Mr Cheong lived here for thirty-four years, kept bees at the bottom of the garden, and is said to have never once locked the front door.
 
-After he died in 1988 the house passed to the estate, which let it to a succession of forestry officers and then to nobody. By 2003 the veranda had sagged, the roof leaked in four places, and a fig had taken root in the garden wall. Hajar Mansor's father, an agronomist at the estate, walked past it every day for twelve years before he bought it in 2016, mostly to stop it being pulled down.
+After he died in 1988 the house passed to the estate, which let it to a succession of forestry officers and then to nobody. By 2003 the veranda had sagged, the roof leaked in four places, and a fig had taken root in the garden wall. Hajar Mansor's father, an agronomist at the estate, walked past it every day for thirteen years before he bought it in 2016, mostly to stop it being pulled down.
 
 The restoration took three years. Pak Samad, a carpenter from the village, replaced the rotten beams one by one and refused to use a nail where a joint would do. The floors were sanded by hand, the chimney was rebuilt with its own stones, and the four rooms were made from the old bedrooms and the tea-sorting room at the back. Nothing was moved that did not need to be. The house opened to guests in the spring of 2019.
 
 We have kept to Mr Cheong’s one rule, which is that the day starts with the view. The beds face the windows. Breakfast waits until the fog lifts. If you ask, we will tell you what the morning is going to do, and we are right about two times in three.`;
 
-const HOST_BIO = `I grew up in the estate village below the house and left at eighteen to study in Kuala Lumpur, as everyone did. I came back in 2017 when my father bought Rumah Kabus and needed someone to keep him from sanding the floors with the wrong paper.
+const HOST_BIO = `I grew up in the estate village below the house and left at eighteen to study in Kuala Lumpur, as everyone did. I came back in 2016, when my father bought Rumah Kabus and needed someone to keep him from sanding the floors with the wrong paper.
 
 I look after the guests, the kitchen garden and most of the breakfast. My husband, Iskandar, looks after the fire, the generator, and the two dogs. If you want to walk through the estate, borrow a pair of boots, or find out which warung is open on a Monday, ask me. I would rather answer a question than leave you with a map.`;
 
@@ -303,11 +320,14 @@ type AttractionSpec = {
 	travelMode?: (typeof attraction.$inferInsert)['travelMode'];
 	distanceMeters?: number;
 	url?: string;
-	latitude?: number;
-	longitude?: number;
+	/** Metres north and east of the exact address; the stored coordinates are derived from it. */
+	offset: [north: number, east: number];
 	image?: AssetKey;
 };
 
+// The offsets are chosen so the straight-line distance fits the travel time: about 70 m a minute
+// on foot, about 400 m a minute by car on these hill roads (the road is always longer than the
+// straight line). The bus stop has a distance instead of a time, and is 6.2 km by road.
 const ATTRACTIONS: AttractionSpec[] = [
 	{
 		name: 'Ladang Teh Bukit Sinar',
@@ -316,8 +336,7 @@ const ATTRACTIONS: AttractionSpec[] = [
 			'Start at the factory gate at seven, before the pickers reach the top terraces. Walk the contour path to the end and back; it takes about two hours and the light is better than at any viewpoint.',
 		travelMinutes: 12,
 		travelMode: 'walk',
-		latitude: 4.4195,
-		longitude: 101.3772,
+		offset: [450, -520], // 690 m
 		image: 'hero'
 	},
 	{
@@ -327,8 +346,7 @@ const ATTRACTIONS: AttractionSpec[] = [
 			'Kak Ros makes nasi lemak from five and sells out by ten. Ask for the sambal sotong, and do not leave without the pisang goreng, which she fries when you order it.',
 		travelMinutes: 8,
 		travelMode: 'walk',
-		latitude: 4.4172,
-		longitude: 101.3801
+		offset: [-380, 260] // 460 m
 	},
 	{
 		name: 'Kopi Lumut',
@@ -337,9 +355,8 @@ const ATTRACTIONS: AttractionSpec[] = [
 			'A roaster in a converted shophouse with three tables. The flat white is fine; the cold-brew with a slice of orange peel is what I go for after a long day of nothing.',
 		travelMinutes: 10,
 		travelMode: 'drive',
-		latitude: 4.4688,
-		longitude: 101.3796,
-		url: 'https://example.test/kopi-lumut'
+		url: 'https://example.test/kopi-lumut',
+		offset: [4200, 1500] // 4.5 km
 	},
 	{
 		name: 'Hutan Lumut Boardwalk',
@@ -348,8 +365,7 @@ const ATTRACTIONS: AttractionSpec[] = [
 			'The mossy forest at its best is the first hour after the gate opens, when you can still hear your own footsteps. Wear something warm, because it is ten degrees cooler than the house.',
 		travelMinutes: 35,
 		travelMode: 'drive',
-		latitude: 4.5214,
-		longitude: 101.3911,
+		offset: [11500, 7800], // 13.9 km
 		image: 'forestTrack'
 	},
 	{
@@ -359,18 +375,16 @@ const ATTRACTIONS: AttractionSpec[] = [
 			'Go early for the strawberries and stay for the kuih. Mak Cik Zainab at the third stall sells a tapioca cake I have not managed to copy in seven years of trying.',
 		travelMinutes: 20,
 		travelMode: 'drive',
-		latitude: 4.4731,
-		longitude: 101.3774
+		offset: [-6200, 4900] // 7.9 km
 	},
 	{
 		name: 'Semai Weaving Cooperative',
 		category: 'culture',
 		hostNote:
-			'Run by a group of women from the nearby Orang Asli village. Buy directly from them, and if it is quiet ask to see the pandan being prepared. They will tell you about it for as long as you want to hear.',
+			'Run by a group of women from the Orang Asli village across the valley. Buy directly from them, and if it is quiet ask to see the pandan being prepared. They will tell you about it for as long as you want to hear.',
 		travelMinutes: 25,
 		travelMode: 'drive',
-		latitude: 4.4402,
-		longitude: 101.4012,
+		offset: [-3500, -9300], // 9.9 km
 		image: 'fig'
 	},
 	{
@@ -380,8 +394,7 @@ const ATTRACTIONS: AttractionSpec[] = [
 			'A cold, clear swim before breakfast, for those who are brave. The floats mark the safe water. Take a towel and a flask, and do not expect to feel your feet.',
 		travelMinutes: 10,
 		travelMode: 'walk',
-		latitude: 4.4152,
-		longitude: 101.3745,
+		offset: [-250, -520], // 580 m
 		image: 'jetty'
 	},
 	{
@@ -390,8 +403,7 @@ const ATTRACTIONS: AttractionSpec[] = [
 		hostNote:
 			'Coaches from Kuala Lumpur and Ipoh stop here, about six kilometres down the hill. Message me your arrival time and we will send someone to meet you; the last coach is at seven.',
 		distanceMeters: 6200,
-		latitude: 4.4175,
-		longitude: 101.3869
+		offset: [-3900, 4800] // 6.2 km straight line
 	}
 ];
 
@@ -445,7 +457,7 @@ It is not a place for people who want a pool or a bar. It is a place for people 
 		rating: 4,
 		title: 'Cold nights, warm house',
 		status: 'published',
-		body: 'Came with my wife and our six-year-old. The garden room was ideal: he had the day bed and the lawn outside the door, and we had the bath. It gets properly cold at night, so pack a jumper, although the blankets are very good. We lost half a star only because the wifi dropped by the garden, which was perhaps the point.'
+		body: 'Came with my wife and our six-year-old. The garden room was ideal: he had the day bed and the lawn outside the door, and we had the bath. It gets properly cold at night, so pack a jumper, although the blankets are very good. I would have said five stars, but the wifi dropped by the garden, which was perhaps the point.'
 	},
 	{
 		name: 'Priya Nair',
@@ -523,19 +535,193 @@ const IMPORTED_REVIEWS: ImportedReview[] = [
 
 // --- Helpers --------------------------------------------------------------------------------
 
-/** First name and last initial, never an email: the same rule as `displayName()` in the repo. */
-function displayName(fullName: string): string {
-	const parts = fullName.split(/\s+/).filter((p) => p !== '' && !p.includes('@'));
-	if (parts.length < 2) return parts[0] ?? 'Guest';
-	return `${parts[0]} ${[...parts[parts.length - 1]][0].toUpperCase()}.`;
-}
-
-/** SHA-256 hex of a fresh random token. The plain token is dropped, never stored or printed. */
-const tokenHash = () => createHash('sha256').update(randomBytes(32)).digest('hex');
-
 function must<T>(value: T | undefined, what: string): T {
 	if (value === undefined) throw new Error(`Sample property seed: missing ${what}`);
 	return value;
+}
+
+/** The transaction handle drizzle passes to `db.transaction`. */
+type Tx = Parameters<Parameters<SeedDb['transaction']>[0]>[0];
+
+/** Pair the rows an `insert ... returning` produced with the specs they came from, in order. */
+function zipRows<S, R>(specs: readonly S[], rows: readonly R[], what: string): [S, R][] {
+	if (specs.length !== rows.length) throw new Error(`Sample property seed: ${what} count mismatch`);
+	return specs.map((spec, i) => [spec, rows[i]]);
+}
+
+// --- The inbox: one pending booking and one open question -----------------------------------
+
+const FARAH_EMAIL = 'farah.aziz@example.test';
+const LARS_EMAIL = 'lars.eriksen@example.test';
+const INBOX_EMAILS = [FARAH_EMAIL, LARS_EMAIL];
+const GARDEN_ROOM_NAME = 'Garden Room';
+
+/**
+ * Write the inbox fixtures: a pending booking for the Garden Room 35 days out, created 20 hours
+ * ago, and a pending question created 6 hours ago, each with a short thread. Dates and creation
+ * times are relative to `now`, in the property's timezone.
+ */
+async function insertInbox(
+	tx: Tx,
+	args: {
+		propertyId: string;
+		ownerId: string | null;
+		gardenRoom: { id: string; nightlyRateMinor: number };
+		now: Date;
+	}
+) {
+	const { propertyId, ownerId, gardenRoom, now } = args;
+	const today = todayInZone(TIMEZONE, now);
+	const futureIn = addDays(today, 35);
+	const futureOut = addDays(futureIn, 3);
+	const bookingCreated = new Date(now.getTime() - 20 * 3_600_000);
+	const questionCreated = new Date(now.getTime() - 6 * 3_600_000);
+
+	const [bookingHash, questionHash] = await Promise.all([
+		hashAccessToken(generateAccessToken()),
+		hashAccessToken(generateAccessToken())
+	]);
+	const rows = await tx
+		.insert(bookingRequest)
+		.values([
+			{
+				propertyId,
+				reference: generateReference(),
+				kind: 'booking',
+				roomId: gardenRoom.id,
+				checkIn: futureIn,
+				checkOut: futureOut,
+				adults: 2,
+				children: 0,
+				guestName: 'Farah Aziz',
+				guestEmail: FARAH_EMAIL,
+				status: 'pending',
+				expiresAt: new Date(bookingCreated.getTime() + REQUEST_TTL_MS),
+				currency: 'MYR',
+				nightlyRateMinor: gardenRoom.nightlyRateMinor,
+				estimatedTotalMinor: gardenRoom.nightlyRateMinor * nightsBetween(futureIn, futureOut),
+				guestAccessTokenHash: bookingHash,
+				createdAt: bookingCreated,
+				updatedAt: bookingCreated
+			},
+			{
+				propertyId,
+				reference: generateReference(),
+				kind: 'question',
+				guestName: 'Lars Eriksen',
+				guestEmail: LARS_EMAIL,
+				status: 'pending',
+				expiresAt: new Date(questionCreated.getTime() + REQUEST_TTL_MS),
+				currency: 'MYR',
+				guestAccessTokenHash: questionHash,
+				createdAt: questionCreated,
+				updatedAt: questionCreated
+			}
+		])
+		.returning({ id: bookingRequest.id, guestEmail: bookingRequest.guestEmail });
+	const bookingId = must(rows.find((r) => r.guestEmail === FARAH_EMAIL)?.id, 'inbox booking');
+	const questionId = must(rows.find((r) => r.guestEmail === LARS_EMAIL)?.id, 'inbox question');
+
+	await tx.insert(bookingMessage).values([
+		{
+			bookingRequestId: bookingId,
+			sender: 'guest',
+			body: 'We are celebrating our anniversary and would love the Garden Room. Is it possible to have the bath ready on arrival, and is there anywhere nearby for a quiet dinner on the first night?',
+			createdAt: bookingCreated
+		},
+		{
+			bookingRequestId: bookingId,
+			sender: 'host',
+			authorUserId: ownerId,
+			body: 'Congratulations. Yes to both. Kak Ros’s warung is a short walk and does a good dinner if you order by four. I will light the boiler an hour before you arrive.',
+			createdAt: minutes(bookingCreated, 90)
+		},
+		{
+			bookingRequestId: questionId,
+			sender: 'guest',
+			body: 'We are travelling with a toddler and plan to come by coach from Kuala Lumpur. Is there a cot, and is the last stretch to the house safe to walk with a pushchair?',
+			createdAt: questionCreated
+		},
+		{
+			bookingRequestId: questionId,
+			sender: 'host',
+			authorUserId: ownerId,
+			body: 'There is a cot in the Long House, and we can send someone to meet the coach at Ringlet. The last kilometre is steep, so I would not walk it with a pushchair. Which dates are you thinking of?',
+			createdAt: minutes(questionCreated, 120)
+		},
+		{
+			bookingRequestId: questionId,
+			sender: 'guest',
+			body: 'Thank you. Probably the first week of next month. We will arrive on the 4 pm coach.',
+			createdAt: minutes(questionCreated, 200)
+		}
+	]);
+}
+
+/**
+ * The property exists, so only the inbox may change. A pending request expires 72 hours after it
+ * is created, and the booking's dates are relative to "now", so the fixtures go stale: if either
+ * is missing, no longer `pending` or past `expires_at`, both are deleted (their threads cascade)
+ * and written again with fresh dates. Everything else is left exactly as it is.
+ */
+async function refreshInbox(db: SeedDb, propertyId: string, now: Date): Promise<SeedModuleResult> {
+	return db.transaction(async (tx) => {
+		const requests = await tx
+			.select({
+				id: bookingRequest.id,
+				email: bookingRequest.guestEmail,
+				status: bookingRequest.status,
+				expiresAt: bookingRequest.expiresAt
+			})
+			.from(bookingRequest)
+			.where(
+				and(
+					eq(bookingRequest.propertyId, propertyId),
+					inArray(bookingRequest.guestEmail, INBOX_EMAILS)
+				)
+			);
+		const fresh =
+			INBOX_EMAILS.every((email) => requests.some((r) => r.email === email)) &&
+			requests.every((r) => r.status === 'pending' && r.expiresAt.getTime() > now.getTime());
+		if (fresh) {
+			return {
+				created: false,
+				detail: `${SAMPLE_PROPERTY_SLUG} already exists, inbox is current`
+			};
+		}
+
+		const [gardenRoom] = await tx
+			.select({ id: room.id, nightlyRateMinor: room.nightlyRateMinor })
+			.from(room)
+			.where(and(eq(room.propertyId, propertyId), eq(room.name, GARDEN_ROOM_NAME)))
+			.limit(1);
+		if (!gardenRoom) {
+			return {
+				created: false,
+				detail: `${SAMPLE_PROPERTY_SLUG} exists but has no "${GARDEN_ROOM_NAME}"; inbox left alone`
+			};
+		}
+		const [owner] = await tx
+			.select({ ownerId: property.ownerId })
+			.from(property)
+			.where(eq(property.id, propertyId))
+			.limit(1);
+
+		if (requests.length > 0) {
+			await tx.delete(bookingRequest).where(
+				inArray(
+					bookingRequest.id,
+					requests.map((r) => r.id)
+				)
+			);
+		}
+		await insertInbox(tx, { propertyId, ownerId: owner?.ownerId ?? null, gardenRoom, now });
+		return {
+			created: false,
+			refreshed: true,
+			detail: `${SAMPLE_PROPERTY_SLUG} inbox fixtures were stale; recreated with fresh dates`
+		};
+	});
 }
 
 // --- The module -----------------------------------------------------------------------------
@@ -546,11 +732,9 @@ export async function seedSampleProperty(db: SeedDb, now = new Date()): Promise<
 		.from(property)
 		.where(eq(property.slug, SAMPLE_PROPERTY_SLUG))
 		.limit(1);
-	if (existing) {
-		return { created: false, detail: `${SAMPLE_PROPERTY_SLUG} already exists (${existing.id})` };
-	}
+	if (existing) return refreshInbox(db, existing.id, now);
 
-	const today = todayInZone(now);
+	const today = todayInZone(TIMEZONE, now);
 
 	const counts = await db.transaction(async (tx) => {
 		const [owner] = await tx
@@ -591,7 +775,9 @@ export async function seedSampleProperty(db: SeedDb, now = new Date()): Promise<
 			.returning({ id: property.id });
 		const propertyId = prop.id;
 
-		// Media library: one row per asset, all in this property's library.
+		// Media library: one row per ASSETS key, all in this property's library. A multi-row INSERT
+		// returns its rows in VALUES order, so each returned row is paired with its key by position
+		// (and the url is checked, in case that ever stops being true).
 		const assetKeys = Object.keys(ASSETS) as AssetKey[];
 		const assetRows = await tx
 			.insert(mediaAsset)
@@ -612,9 +798,16 @@ export async function seedSampleProperty(db: SeedDb, now = new Date()): Promise<
 					};
 				})
 			)
-			.returning({ id: mediaAsset.id, url: mediaAsset.url, altText: mediaAsset.altText });
-		const asset = (key: AssetKey) =>
-			must(assetRows.find((r) => r.altText === ASSETS[key].alt)?.id, `media asset "${key}"`);
+			.returning({ id: mediaAsset.id, url: mediaAsset.url });
+		const assetIds = new Map<AssetKey, string>(
+			zipRows(assetKeys, assetRows, 'media assets').map(([key, row]) => {
+				if (row.url !== `/prototype/${ASSETS[key].photo.file}`) {
+					throw new Error(`Sample property seed: media asset "${key}" came back out of order`);
+				}
+				return [key, row.id];
+			})
+		);
+		const asset = (key: AssetKey) => must(assetIds.get(key), `media asset "${key}"`);
 
 		// Placements: hero, a 7-frame gallery, thumbnail.
 		const gallery: AssetKey[] = [
@@ -647,7 +840,7 @@ export async function seedSampleProperty(db: SeedDb, now = new Date()): Promise<
 			languages: ['en', 'ms']
 		});
 
-		// Rooms, with their media and amenities.
+		// Rooms, with their media and amenities in one insert each.
 		const roomRows = await tx
 			.insert(room)
 			.values(
@@ -663,27 +856,29 @@ export async function seedSampleProperty(db: SeedDb, now = new Date()): Promise<
 				}))
 			)
 			.returning({ id: room.id, name: room.name });
-		const roomIdByKey = new Map<string, string>();
-		for (const spec of ROOMS) {
-			const row = must(
-				roomRows.find((r) => r.name === spec.name),
-				`room ${spec.key}`
-			);
-			roomIdByKey.set(spec.key, row.id);
-			await tx.insert(roomMedia).values(
+		const rooms = zipRows(ROOMS, roomRows, 'rooms').map(([spec, row]) => {
+			if (row.name !== spec.name)
+				throw new Error('Sample property seed: rooms came back out of order');
+			return { spec, id: row.id };
+		});
+		const roomIdByKey = new Map(rooms.map((r) => [r.spec.key, r.id]));
+		await tx.insert(roomMedia).values(
+			rooms.flatMap(({ spec, id }) =>
 				spec.media.map((key, sortOrder) => ({
-					roomId: row.id,
+					roomId: id,
 					propertyId,
 					mediaAssetId: asset(key),
 					sortOrder
 				}))
+			)
+		);
+		await tx
+			.insert(roomAmenity)
+			.values(
+				rooms.flatMap(({ spec, id }) =>
+					spec.amenities.map(([key, note]) => ({ roomId: id, amenityId: amenityId(key), note }))
+				)
 			);
-			await tx
-				.insert(roomAmenity)
-				.values(
-					spec.amenities.map(([key, note]) => ({ roomId: row.id, amenityId: amenityId(key), note }))
-				);
-		}
 
 		// Property amenities.
 		await tx
@@ -719,8 +914,8 @@ export async function seedSampleProperty(db: SeedDb, now = new Date()): Promise<
 			region: 'Pahang',
 			postalCode: '39200',
 			countryCode: 'MY',
-			latitude: 4.418234,
-			longitude: 101.379512,
+			latitude: LATITUDE,
+			longitude: LONGITUDE,
 			destinationId: dest.id,
 			// Privacy projection (decision 8): public pages see locality and ~1 km coordinates only.
 			showExactLocation: false
@@ -737,8 +932,7 @@ export async function seedSampleProperty(db: SeedDb, now = new Date()): Promise<
 				travelMode: a.travelMode ?? null,
 				distanceMeters: a.distanceMeters ?? null,
 				url: a.url ?? null,
-				latitude: a.latitude ?? null,
-				longitude: a.longitude ?? null,
+				...pointFrom(...a.offset),
 				mediaAssetId: a.image ? asset(a.image) : null,
 				sortOrder
 			}))
@@ -759,170 +953,115 @@ export async function seedSampleProperty(db: SeedDb, now = new Date()): Promise<
 			}))
 		);
 
-		// Guest stays and their reviews.
-		const guestReviewBookingIds: string[] = [];
-		for (const stay of GUEST_STAYS) {
-			const spec = must(
-				ROOMS.find((r) => r.key === stay.room),
-				`room ${stay.room}`
-			);
-			const checkIn = addDays(today, -stay.checkInAgo);
-			const checkOut = addDays(checkIn, stay.nights);
-			const createdAt = at(addDays(checkIn, -21), '09:00');
-			const respondedAt = minutes(createdAt, 60 * 20);
-			const [booking] = await tx
-				.insert(bookingRequest)
-				.values({
-					propertyId,
-					reference: generateReference(),
-					kind: 'booking',
-					roomId: roomIdByKey.get(stay.room)!,
+		// Guest stays: one accepted past booking each, inserted together.
+		const stays = await Promise.all(
+			GUEST_STAYS.map(async (stay) => {
+				const spec = must(
+					ROOMS.find((r) => r.key === stay.room),
+					`room ${stay.room}`
+				);
+				const checkIn = addDays(today, -stay.checkInAgo);
+				const checkOut = addDays(checkIn, stay.nights);
+				const createdAt = at(addDays(checkIn, -21), '09:00');
+				const respondedAt = minutes(createdAt, 60 * 20);
+				return {
+					stay,
 					checkIn,
 					checkOut,
-					adults: stay.adults,
-					children: stay.children,
-					guestName: stay.name,
-					guestEmail: stay.email.trim().toLowerCase(),
-					status: 'accepted',
-					respondedAt,
-					expiresAt: new Date(createdAt.getTime() + REQUEST_TTL_MS),
-					currency: 'MYR',
-					nightlyRateMinor: spec.nightlyRateMinor,
-					estimatedTotalMinor: spec.nightlyRateMinor * nightsBetween(checkIn, checkOut),
-					guestAccessTokenHash: tokenHash(),
-					createdAt,
-					updatedAt: respondedAt
-				})
-				.returning({ id: bookingRequest.id });
-			guestReviewBookingIds.push(booking.id);
+					booking: {
+						propertyId,
+						reference: generateReference(),
+						kind: 'booking' as const,
+						roomId: must(roomIdByKey.get(stay.room), `room ${stay.room}`),
+						checkIn,
+						checkOut,
+						adults: stay.adults,
+						children: stay.children,
+						guestName: stay.name,
+						guestEmail: stay.email.trim().toLowerCase(),
+						status: 'accepted' as const,
+						respondedAt,
+						expiresAt: new Date(createdAt.getTime() + REQUEST_TTL_MS),
+						currency: 'MYR',
+						nightlyRateMinor: spec.nightlyRateMinor,
+						estimatedTotalMinor: spec.nightlyRateMinor * nightsBetween(checkIn, checkOut),
+						guestAccessTokenHash: await hashAccessToken(generateAccessToken()),
+						createdAt,
+						updatedAt: respondedAt
+					}
+				};
+			})
+		);
+		const bookingRows = await tx
+			.insert(bookingRequest)
+			.values(stays.map((s) => s.booking))
+			.returning({ id: bookingRequest.id, guestEmail: bookingRequest.guestEmail });
+		const paired = zipRows(stays, bookingRows, 'bookings').map(([s, row]) => {
+			if (row.guestEmail !== s.booking.guestEmail) {
+				throw new Error('Sample property seed: bookings came back out of order');
+			}
+			return { ...s, bookingId: row.id };
+		});
 
-			// The stay is over; a review follows a few days later (moderated the day after it is written).
-			const writtenAt = at(addDays(checkOut, 2), '20:15');
-			const moderatedAt = at(addDays(checkOut, 3), '11:00');
-			const published = stay.status === 'published';
-			await tx.insert(review).values({
-				propertyId,
-				source: 'guest',
-				bookingRequestId: booking.id,
-				rating: stay.rating,
-				title: stay.title,
-				body: stay.body,
-				authorName: displayName(stay.name),
-				stayedOn: checkIn,
-				status: stay.status,
-				moderatedAt: published ? moderatedAt : null,
-				publishedAt: published ? moderatedAt : null,
-				hostReply: stay.hostReply ?? null,
-				hostRepliedAt: stay.hostReply ? at(addDays(checkOut, 4), '08:30') : null,
-				createdAt: writtenAt,
-				updatedAt: writtenAt
-			});
-		}
-
-		// Imported reviews: labelled with their origin, no booking, published.
-		for (const imp of IMPORTED_REVIEWS) {
-			const publishedAt = at(addDays(today, -imp.publishedAgo), '12:00');
-			await tx.insert(review).values({
-				propertyId,
-				source: 'imported',
-				origin: imp.origin,
-				rating: imp.rating,
-				title: imp.title,
-				body: imp.body,
-				authorName: imp.authorName,
-				stayedOn: addDays(today, -imp.stayedAgo),
-				status: 'published',
-				moderatedAt: publishedAt,
-				publishedAt,
-				createdAt: publishedAt,
-				updatedAt: publishedAt
-			});
-		}
+		// Reviews: a guest review per stay (written a couple of days after checkout, moderated the
+		// day after), then the imported ones, labelled with their origin and with no booking.
+		await tx.insert(review).values([
+			...paired.map(({ stay, checkIn, checkOut, bookingId }) => {
+				const writtenAt = at(addDays(checkOut, 2), '20:15');
+				const moderatedAt = at(addDays(checkOut, 3), '11:00');
+				const published = stay.status === 'published';
+				return {
+					propertyId,
+					source: 'guest' as const,
+					bookingRequestId: bookingId,
+					rating: stay.rating,
+					title: stay.title,
+					body: stay.body,
+					authorName: displayName(stay.name),
+					stayedOn: checkIn,
+					status: stay.status,
+					moderatedAt: published ? moderatedAt : null,
+					publishedAt: published ? moderatedAt : null,
+					hostReply: stay.hostReply ?? null,
+					hostRepliedAt: stay.hostReply ? at(addDays(checkOut, 4), '08:30') : null,
+					createdAt: writtenAt,
+					updatedAt: writtenAt
+				};
+			}),
+			...IMPORTED_REVIEWS.map((imp) => {
+				const publishedAt = at(addDays(today, -imp.publishedAgo), '12:00');
+				return {
+					propertyId,
+					source: 'imported' as const,
+					origin: imp.origin,
+					rating: imp.rating,
+					title: imp.title,
+					body: imp.body,
+					authorName: imp.authorName,
+					stayedOn: addDays(today, -imp.stayedAgo),
+					status: 'published' as const,
+					moderatedAt: publishedAt,
+					publishedAt,
+					createdAt: publishedAt,
+					updatedAt: publishedAt
+				};
+			})
+		]);
 
 		// Inbox: one future pending booking and one open question, each with a short thread.
 		const gardenRoom = must(
 			ROOMS.find((r) => r.key === 'garden-room'),
 			'garden room'
 		);
-		const futureIn = addDays(today, 35);
-		const futureOut = addDays(futureIn, 3);
-		const bookingCreated = new Date(now.getTime() - 20 * 3_600_000);
-		const [futureBooking] = await tx
-			.insert(bookingRequest)
-			.values({
-				propertyId,
-				reference: generateReference(),
-				kind: 'booking',
-				roomId: roomIdByKey.get('garden-room')!,
-				checkIn: futureIn,
-				checkOut: futureOut,
-				adults: 2,
-				children: 0,
-				guestName: 'Farah Aziz',
-				guestEmail: 'farah.aziz@example.test',
-				status: 'pending',
-				expiresAt: new Date(bookingCreated.getTime() + REQUEST_TTL_MS),
-				currency: 'MYR',
-				nightlyRateMinor: gardenRoom.nightlyRateMinor,
-				estimatedTotalMinor: gardenRoom.nightlyRateMinor * nightsBetween(futureIn, futureOut),
-				guestAccessTokenHash: tokenHash(),
-				createdAt: bookingCreated,
-				updatedAt: bookingCreated
-			})
-			.returning({ id: bookingRequest.id });
-
-		const questionCreated = new Date(now.getTime() - 6 * 3_600_000);
-		const [question] = await tx
-			.insert(bookingRequest)
-			.values({
-				propertyId,
-				reference: generateReference(),
-				kind: 'question',
-				guestName: 'Lars Eriksen',
-				guestEmail: 'lars.eriksen@example.test',
-				status: 'pending',
-				expiresAt: new Date(questionCreated.getTime() + REQUEST_TTL_MS),
-				currency: 'MYR',
-				guestAccessTokenHash: tokenHash(),
-				createdAt: questionCreated,
-				updatedAt: questionCreated
-			})
-			.returning({ id: bookingRequest.id });
-
-		await tx.insert(bookingMessage).values([
-			{
-				bookingRequestId: futureBooking.id,
-				sender: 'guest',
-				body: 'We are celebrating our anniversary and would love the Garden Room. Is it possible to have the bath ready on arrival, and is there anywhere nearby for a quiet dinner on the first night?',
-				createdAt: bookingCreated
+		await insertInbox(tx, {
+			propertyId,
+			ownerId: owner.id,
+			gardenRoom: {
+				id: must(roomIdByKey.get('garden-room'), 'garden room id'),
+				nightlyRateMinor: gardenRoom.nightlyRateMinor
 			},
-			{
-				bookingRequestId: futureBooking.id,
-				sender: 'host',
-				authorUserId: owner.id,
-				body: 'Congratulations. Yes to both. Kak Ros’s warung is a short walk and does a good dinner if you order by four. I will light the boiler an hour before you arrive.',
-				createdAt: minutes(bookingCreated, 90)
-			},
-			{
-				bookingRequestId: question.id,
-				sender: 'guest',
-				body: 'We are travelling with a toddler and plan to come by coach from Kuala Lumpur. Is there a cot, and is the last stretch to the house safe to walk with a pushchair?',
-				createdAt: questionCreated
-			},
-			{
-				bookingRequestId: question.id,
-				sender: 'host',
-				authorUserId: owner.id,
-				body: 'There is a cot in the Long House, and we can send someone to meet the coach at Ringlet. The last kilometre is steep, so I would not walk it with a pushchair. Which dates are you thinking of?',
-				createdAt: minutes(questionCreated, 120)
-			},
-			{
-				bookingRequestId: question.id,
-				sender: 'guest',
-				body: 'Thank you. Probably the first week of next month. We will arrive on the 4 pm coach.',
-				createdAt: minutes(questionCreated, 200)
-			}
-		]);
+			now
+		});
 
 		return {
 			amenities: PROPERTY_AMENITIES.length,

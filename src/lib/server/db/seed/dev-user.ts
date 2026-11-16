@@ -20,7 +20,12 @@ export const DEV_USER_EMAIL = 'owner@ustay.test';
 export const DEV_USER_PASSWORD = 'ustay-dev-password';
 export const DEV_USER_NAME = 'Dev Owner';
 
-export type SeedModuleResult = { readonly created: boolean; readonly detail: string };
+export type SeedModuleResult = {
+	readonly created: boolean;
+	/** Set when an existing record was brought up to date rather than left alone. */
+	readonly refreshed?: boolean;
+	readonly detail: string;
+};
 
 export async function seedDevUser(db: SeedDb, auth: SeedAuth): Promise<SeedModuleResult> {
 	const [existing] = await db

@@ -153,11 +153,17 @@ Rules:
 
 ## Media URLs (UST-20)
 
-- **`media_asset.url`** is an `http(s)://` URL or a site-relative path (`/prototype/x.jpg`, served
-  from this app's `static/`), enforced by `media_asset_url_check` (`^(https?://|/[^/])`, migration
-  `0009`). A protocol-relative `//host/x` is refused, because it resolves to another origin. The
-  repo does not re-validate it; the database CHECK is the rule, and a bad value surfaces as
-  Postgres error `23514`.
+- **`media_asset.url`** is either an absolute `http(s)://` URL with no whitespace or backslash
+  anywhere, or a file under `/prototype/` (served from this app's `static/`) with a safe charset
+  (`[A-Za-z0-9_-]` path segments, no `..`) and a media extension (`jpg`, `jpeg`, `png`, `webp`,
+  `avif`, `mp4`, `webm`). Nothing else: a protocol-relative `//host/x` resolves to another origin,
+  a browser reads `/\host` as `//host`, and an arbitrary site-relative path could point at an app
+  route (`/logout`) that every visitor's browser would request with its cookies.
+- **One rule, two enforcers.** The patterns live in `src/lib/server/db/media-url.ts` (pure, no
+  `$env`). `media_asset_url_check` is built from them (migration `0009`), and `media.repo.ts`
+  applies `isValidMediaUrl` on insert and update, throwing a typed `MediaValidationError` before
+  the database sees the value. The CHECK still catches writes that bypass the repo (the seed).
+- Phase 3 (R2 uploads) will serve assets from an absolute URL, which the first form already allows.
 
 ## Host and story (UST-15)
 
@@ -394,14 +400,14 @@ conventions that data drops into.
   `cameron-highlands` destination, 8 attractions, the `editorial` microsite (all 8 sections
   enabled, gallery `zoom`, accent `forest`), 5 guest reviews (4 published, 1 pending, each backed
   by an accepted past booking, one with a host reply), 2 imported reviews (Google, Booking.com),
-  and an inbox of one pending future booking and one open question with short threads. The
+  and an inbox of one pending future booking and one open question with short threads. Those two inbox fixtures are the one part that is refreshed on a re-run: a pending request expires after 72 hours and the booking's dates are relative to "now", so if either is missing, no longer `pending` or past `expires_at`, both are deleted (threads cascade) and recreated with fresh dates, and the module reports `refreshed`. Nothing else is touched. The
   published ratings average 4.7. It is idempotent (skips if the slug exists) and runs in one
   transaction. Past and future dates are computed in the property's timezone from "now", and
   access tokens are hashed random bytes whose plain values are discarded. It writes directly with
   the query builder, so it reproduces what the repos enforce (same-library media, price snapshots
   of rate x nights, consistent `published_at` / `moderated_at`, display-name authors, 72-hour
   `expires_at`, lower-cased emails). `seed.db.test.ts` reads it back through the repos.
-- **Imagery** is local: `media_asset.url` is a site-relative path to one of the six photographs in
+- **Imagery** is local: `media_asset.url` is a path under `/prototype/` to one of the six photographs in
   `static/prototype/` (`/prototype/hero-forest.jpg`, ...) with their real pixel sizes, and
   `storage_key` stays null. Files are reused across placements (several `media_asset` rows may
   share one file, with their own focal point and alt text). The photographs do not depict
