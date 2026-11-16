@@ -56,16 +56,20 @@ export async function findPropertyBySlug(slug: string, tx: Executor = db) {
 export async function findPropertyById(
 	id: string,
 	tx: Executor = db,
-	opts: { lock?: boolean } = {}
+	opts: { lock?: boolean | 'share' } = {}
 ) {
 	if (!isUuid(id)) return undefined;
 	const query = tx.select().from(property).where(eq(property.id, id)).limit(1);
-	const [row] = await (opts.lock ? query.for('update') : query);
+	const [row] = await (opts.lock === 'share'
+		? query.for('share')
+		: opts.lock
+			? query.for('update')
+			: query);
 	return row;
 }
 
 /**
- * Lock the property row (`FOR UPDATE`) and return it, or throw {@link PropertyNotFoundError} for an
+ * Lock the property row (`FOR UPDATE`; `lock: 'share'` takes `FOR SHARE`) and return it, or throw {@link PropertyNotFoundError} for an
  * unknown or malformed id. Call inside a transaction before writing the property's dependants.
  */
 export async function lockPropertyOrThrow(id: string, tx: Executor = db) {

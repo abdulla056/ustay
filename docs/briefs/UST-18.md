@@ -107,6 +107,7 @@ and `expires_at` where the status is `pending` (a partial index).
   - `check_in` isn't in the past in the property's timezone.
 
   It then snapshots the price and writes the opening message, if any, as the first `guest` message.
+
 - `createQuestion(input)` returns `{ request, accessToken }` and follows the same pattern without
   dates.
 - `findBookingRequestById`, `findBookingRequestByReference`, and

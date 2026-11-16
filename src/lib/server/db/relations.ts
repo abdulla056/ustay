@@ -8,6 +8,7 @@
 import { relations } from 'drizzle-orm';
 import { user } from './auth.schema';
 import { amenity, propertyAmenity, roomAmenity } from './amenity.schema';
+import { bookingMessage, bookingRequest } from './booking.schema';
 import { hostProfile } from './host.schema';
 import { attraction, destination, propertyLocation } from './location.schema';
 import { micrositeConfig, micrositeSection } from './microsite.schema';
@@ -26,7 +27,23 @@ export const propertyRelations = relations(property, ({ one, many }) => ({
 	location: one(propertyLocation),
 	attractions: many(attraction),
 	micrositeConfig: one(micrositeConfig),
-	micrositeSections: many(micrositeSection)
+	micrositeSections: many(micrositeSection),
+	bookingRequests: many(bookingRequest)
+}));
+
+export const bookingRequestRelations = relations(bookingRequest, ({ one, many }) => ({
+	property: one(property, { fields: [bookingRequest.propertyId], references: [property.id] }),
+	room: one(room, { fields: [bookingRequest.roomId], references: [room.id] }),
+	guestUser: one(user, { fields: [bookingRequest.guestUserId], references: [user.id] }),
+	messages: many(bookingMessage)
+}));
+
+export const bookingMessageRelations = relations(bookingMessage, ({ one }) => ({
+	request: one(bookingRequest, {
+		fields: [bookingMessage.bookingRequestId],
+		references: [bookingRequest.id]
+	}),
+	author: one(user, { fields: [bookingMessage.authorUserId], references: [user.id] })
 }));
 
 export const micrositeConfigRelations = relations(micrositeConfig, ({ one }) => ({
