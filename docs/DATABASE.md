@@ -244,7 +244,8 @@ Booking requests only (decision 3); guests need just an email (decision 4). Code
   and its price snapshot. With a room chosen, `adults + children` may not exceed the room's
   `max_guests`; `children` null or absent means 0. **Postgres 15 or newer is required** for the
   column-scoped `SET NULL` (also used by the media and host FKs): `compose.yaml` and CI pin
-  `postgres:17`. Creation takes `FOR SHARE` on the property row (so a concurrent archive waits),
+  `postgres:18` (matches existing local volumes; a major-version change needs a dump/restore or
+  `docker compose down -v`). Creation takes `FOR SHARE` on the property row (so a concurrent archive waits),
   not `FOR UPDATE`.
 - **The price is a snapshot** taken at creation, only for a booking with a room: the property's
   `currency`, the room's `nightly_rate_minor`, and `estimated_total_minor = rate x nights`
@@ -369,4 +370,4 @@ bun run test:db          # = vitest run --project db
   own data; don't rely on another test's rows.
 - **Helpers:** `$lib/server/test/db.ts` re-exports `db` and `truncateAll`.
 - **CI:** the `db integration` job in `.github/workflows/ci.yml` runs `bun run test:db` against a
-  `postgres:17` service container.
+  `postgres:18` service container.
