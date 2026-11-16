@@ -75,4 +75,5 @@ Linear: <url>
 - `UST-16.md` — Location (1:1, privacy flag), destinations, per-property attractions with host_note (done, migration 0005)
 - `UST-17.md` — Microsite config: code registry (templates/accents/fonts) + per-property config & sections (done, PR #36; accents clay/tide provisional pending user sign-off)
 - `UST-18.md` — Booking requests + questions (one table, kind enum), lifecycle, messages, hashed guest access token (done, PR #37; Postgres pinned to 18)
-- `UST-19.md` — Reviews: verified guest vs labelled imported, moderation, host reply, aggregate computed on read (in progress, Sonnet)
+- `UST-19.md` — Reviews: verified guest vs labelled imported, moderation, host reply, aggregate computed on read (done, PR #38)
+- `UST-20.md` — Sample property "Rumah Kabus": every relation seeded, local static imagery, verified through repos (in progress, Sonnet)
