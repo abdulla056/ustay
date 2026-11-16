@@ -25,6 +25,17 @@ describe('renderMarkdown', () => {
 		expect(html).toContain('&lt;img');
 	});
 
+	it('does not render inline images, third-party or data:', () => {
+		for (const src of [
+			'http://tracker/p.gif',
+			'data:image/gif;base64,R0lGOD',
+			'/prototype/x.jpg'
+		]) {
+			const html = renderMarkdown(`![x](${src})`);
+			expect(html).not.toContain('<img');
+		}
+	});
+
 	it('does not link javascript:, vbscript: or data: URLs', () => {
 		for (const href of [
 			'javascript:alert(1)',

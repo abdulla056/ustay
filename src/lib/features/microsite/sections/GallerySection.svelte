@@ -3,6 +3,7 @@
 	// rest. The props contract stays.
 	import { Container, Grid, Image } from '$lib';
 	import ZoomGallery from '$lib/features/gallery/ZoomGallery.svelte';
+	import { objectPosition } from '$lib/features/gallery/layouts';
 	import type { SectionProps } from '../types';
 
 	let { data, variant }: SectionProps<'gallery'> = $props();
@@ -15,7 +16,7 @@
 	{:else}
 		<Container size="wide" class="py-section">
 			<Grid cols={3} gap="tight">
-				{#each data.frames as frame (frame.src)}
+				{#each data.frames as frame, i (i)}
 					<figure>
 						<Image
 							src={frame.src}
@@ -23,7 +24,7 @@
 							width={frame.width}
 							height={frame.height}
 							ratio="4/3"
-							style="object-position: {(frame.focalX ?? 0.5) * 100}% {(frame.focalY ?? 0.5) * 100}%"
+							style="object-position: {objectPosition(frame)}"
 						/>
 						{#if frame.caption}
 							<figcaption class="mt-2 text-sm text-content-muted">{frame.caption}</figcaption>

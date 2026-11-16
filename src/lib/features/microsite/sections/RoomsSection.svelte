@@ -17,7 +17,7 @@
 				<Heading level={2} size="lg" tone="content">Rooms</Heading>
 			</Stack>
 			<Grid cols={2}>
-				{#each data.rooms as room (room.name)}
+				{#each data.rooms as room, i (i)}
 					<article>
 						{#if room.image}
 							<Image

@@ -13,11 +13,11 @@
 	<Container size="content">
 		<Stack gap="md">
 			<Eyebrow tone="accent">The stay</Eyebrow>
-			<Heading level={2} size="lg" tone="content">About this {data.type}</Heading>
+			<Heading level={2} size="lg" tone="content">The house</Heading>
 			{#if data.shortDescription}
 				<Text size="lead" measure="default">{data.shortDescription}</Text>
 			{/if}
-			{#each data.paragraphs as paragraph (paragraph)}
+			{#each data.paragraphs as paragraph, i (i)}
 				<Text measure="default">{paragraph}</Text>
 			{/each}
 			<Stack direction="row" gap="sm" wrap>
@@ -39,7 +39,7 @@
 							· {data.reviews.summary.average.toFixed(1)} from {data.reviews.summary.count}
 						{/if}
 					</Heading>
-					{#each data.reviews.items.slice(0, 3) as review (review.authorName + review.body)}
+					{#each data.reviews.items.slice(0, 3) as review, i (i)}
 						<figure>
 							<blockquote>
 								<Text size="sm">“{review.body}”</Text>

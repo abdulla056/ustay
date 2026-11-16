@@ -17,18 +17,18 @@
  * - `location`: dropped without both a location and attractions.
  */
 import { db, type Executor } from '$lib/server/db';
-import { findPropertyBySlug, findRedirectedSlug } from '$lib/server/property/property.repo';
+import { findPropertyBySlug, findRedirectTarget } from '$lib/server/property/property.repo';
 import { getRenderableMicrosite } from '$lib/server/microsite/microsite.repo';
 import { getPublicPropertyLocation } from '$lib/server/property/location.repo';
 import {
 	listMediaAssets,
 	listPropertyMedia,
-	listRoomMedia,
+	listMediaForRooms,
 	type MediaAsset
 } from '$lib/server/property/media.repo';
 import { getHostProfile } from '$lib/server/property/host.repo';
 import { listRoomsForProperty } from '$lib/server/property/room.repo';
-import { listPropertyAmenities, listRoomAmenities } from '$lib/server/property/amenity.repo';
+import { listAmenitiesForRooms, listPropertyAmenities } from '$lib/server/property/amenity.repo';
 import { listAttractions } from '$lib/server/property/attraction.repo';
 import { findDestinationById } from '$lib/server/destination/destination.repo';
 import { getRatingSummary, listReviews } from '$lib/server/review/review.repo';
@@ -97,12 +97,22 @@ const paragraphs = (text: string | null) =>
 		.map((p) => p.trim())
 		.filter((p) => p !== '');
 
+/**
+ * Every read happens inside one read-only `repeatable read` transaction, so the property's status,
+ * its sections and all its relations come from the same snapshot: what is rendered is exactly what
+ * was checked to be published, and a concurrent unpublish cannot leak half a page.
+ */
 export async function loadMicrosite(slug: string, tx: Executor = db): Promise<LoadMicrositeResult> {
+	return tx.transaction((inner) => loadInSnapshot(slug, inner), {
+		isolationLevel: 'repeatable read',
+		accessMode: 'read only'
+	});
+}
+
+async function loadInSnapshot(slug: string, tx: Executor): Promise<LoadMicrositeResult> {
 	const found = await findPropertyBySlug(slug, tx);
 	if (!found) {
-		const current = await findRedirectedSlug(slug, tx);
-		if (!current) return { kind: 'not_found' };
-		const target = await findPropertyBySlug(current, tx);
+		const target = await findRedirectTarget(slug, tx);
 		return target?.status === 'published'
 			? { kind: 'redirect', slug: target.slug }
 			: { kind: 'not_found' };
@@ -133,16 +143,13 @@ export async function loadMicrosite(slug: string, tx: Executor = db): Promise<Lo
 		listReviews(id, { limit: REVIEW_LIMIT }, tx),
 		getRatingSummary(id, tx)
 	]);
-	// Unpublished between the first read and now, or deleted: treat as gone.
+	// Same snapshot as the status check above, so this only misses for a malformed id.
 	if (!microsite) return { kind: 'not_found' };
 
-	const [roomExtras, destination] = await Promise.all([
-		Promise.all(
-			rooms.map(async (r) => ({
-				media: await listRoomMedia(r.id, tx),
-				amenities: await listRoomAmenities(r.id, tx)
-			}))
-		),
+	const roomIds = rooms.map((r) => r.id);
+	const [roomMedia, roomAmenities, destination] = await Promise.all([
+		listMediaForRooms(roomIds, tx),
+		listAmenitiesForRooms(roomIds, tx),
 		location?.destinationId ? findDestinationById(location.destinationId, tx) : undefined
 	]);
 
@@ -165,14 +172,16 @@ export async function loadMicrosite(slug: string, tx: Executor = db): Promise<Lo
 	const heroImage = heroFrame ?? galleryFrames[0] ?? null;
 
 	// --- Rooms and prices ---
-	const roomViews: RoomView[] = rooms.map((r, i) => ({
+	const roomViews: RoomView[] = rooms.map((r) => ({
 		name: r.name,
 		description: r.description,
 		maxGuests: r.maxGuests,
 		beds: r.beds.map((b) => ({ type: b.type, count: b.count })),
 		nightly: money(r.nightlyRateMinor),
-		image: frames(roomExtras[i].media)[0] ?? null,
-		amenities: roomExtras[i].amenities.map((a) => ({ name: a.name, icon: a.icon }))
+		image: frames(roomMedia.filter((m) => m.roomId === r.id))[0] ?? null,
+		amenities: roomAmenities
+			.filter((a) => a.roomId === r.id)
+			.map((a) => ({ name: a.name, icon: a.icon }))
 	}));
 	const rates = rooms.map((r) => r.nightlyRateMinor);
 	const lowest = rates.length ? Math.min(...rates) : null;
@@ -212,6 +221,8 @@ export async function loadMicrosite(slug: string, tx: Executor = db): Promise<Lo
 	// --- Location (public projection only) ---
 	const place: LocationData['place'] = location
 		? {
+				// The one "locality, region" label, reused by the hero and the location section.
+				label: [location.locality, location.region].filter(Boolean).join(', '),
 				locality: location.locality,
 				region: location.region,
 				countryCode: location.countryCode,
@@ -244,12 +255,13 @@ export async function loadMicrosite(slug: string, tx: Executor = db): Promise<Lo
 	// --- Host and story ---
 	const storyHtml = renderMarkdown(found.storyBody);
 	const hostAvatar = host?.avatarAssetId ? libraryById.get(host.avatarAssetId) : undefined;
+	const bioHtml = renderMarkdown(host?.bio);
 	const hostStory: HostStoryData = {
 		story: storyHtml ? { heading: found.storyHeading, body: { html: storyHtml } } : null,
 		host: host
 			? {
 					displayName: host.displayName,
-					bio: host.bio ? { html: renderMarkdown(host.bio) } : null,
+					bio: bioHtml ? { html: bioHtml } : null,
 					avatar: hostAvatar ? frame(hostAvatar) : null,
 					hostingSince: host.hostingSince,
 					languages: host.languages
@@ -265,7 +277,7 @@ export async function loadMicrosite(slug: string, tx: Executor = db): Promise<Lo
 		hero: (): HeroData => ({
 			name: found.name,
 			tagline: found.tagline,
-			locationLabel: place ? [place.locality, place.region].filter(Boolean).join(', ') : null,
+			locationLabel: place?.label ?? null,
 			image: heroImage
 		}),
 		overview: (): OverviewData | null =>

@@ -5,6 +5,7 @@
  * The rules, which a test pins:
  * - `html: false`: raw HTML in the source is escaped, never passed through (`<script>` and
  *   `<img onerror>` come out as text).
+ * - The `image` rule is off: `![x](http://tracker/p.gif)` stays literal text, never an `<img>`.
  * - markdown-it's default `validateLink` stays on: `javascript:`, `vbscript:`, `file:` and `data:`
  *   links (images excepted for `data:`) are not turned into links at all.
  * - External links (`http(s)://` or `//`) get `rel="noopener noreferrer"` and open in a new tab.
@@ -14,6 +15,9 @@
 import MarkdownIt from 'markdown-it';
 
 const md = new MarkdownIt({ html: false, linkify: false, typographer: true });
+// No inline images: they would bypass the media URL rule (third-party trackers, `data:` URIs).
+// Photographs come from the media library only.
+md.disable('image');
 
 const isExternal = (href: string) => /^(?:https?:)?\/\//i.test(href);
 

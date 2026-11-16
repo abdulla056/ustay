@@ -53,6 +53,19 @@ describe('loadMicrosite', () => {
 		expect(view.theme.accentKey).toBe('forest');
 	});
 
+	it('attaches each room its own image and amenities (batched reads)', async () => {
+		const view = await loadOk();
+		const rooms = view.sections.find((s) => s.type === 'rooms')!;
+		if (rooms.type !== 'rooms') throw new Error('unreachable');
+		expect(rooms.data.rooms.length).toBeGreaterThan(1);
+		expect(rooms.data.rooms.every((r) => r.image !== null)).toBe(true);
+		expect(rooms.data.rooms.some((r) => r.amenities.length > 0)).toBe(true);
+		const location = view.sections.find((s) => s.type === 'location')!;
+		const hero = view.sections.find((s) => s.type === 'hero')!;
+		if (location.type !== 'location' || hero.type !== 'hero') throw new Error('unreachable');
+		expect(hero.data.locationLabel).toBe(location.data.place?.label);
+	});
+
 	it('renders the story and host bio as HTML on the server', async () => {
 		const view = await loadOk();
 		const hostStory = view.sections.find((s) => s.type === 'host_story')!;

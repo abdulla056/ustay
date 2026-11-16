@@ -8,9 +8,7 @@
 
 	const travel = (a: AttractionView) =>
 		a.travel ? `${a.travel.minutes} min by ${a.travel.mode}` : null;
-	const place = $derived(
-		data.place ? [data.place.locality, data.place.region].filter(Boolean).join(', ') : 'Nearby'
-	);
+	const place = $derived(data.place?.label ?? 'Nearby');
 </script>
 
 <Section label="Location" space="md" data-section="location">
@@ -28,7 +26,7 @@
 			</Stack>
 			{#if data.attractions.length > 0}
 				<Grid cols={2}>
-					{#each data.attractions as attraction (attraction.name)}
+					{#each data.attractions as attraction, i (i)}
 						<div>
 							<Heading level={3} size="xs" tone="content">
 								{#if attraction.url}

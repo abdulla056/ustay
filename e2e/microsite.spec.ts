@@ -56,7 +56,14 @@ test('a draft property is a 404', async ({ page }) => {
 });
 
 test('an old slug 301s to the current one', async ({ request }) => {
-	const response = await request.get('/s/e2e-old-name', { maxRedirects: 0 });
+	const response = await request.get('/s/e2e-old-name?utm_source=mail&x=1', { maxRedirects: 0 });
 	expect(response.status()).toBe(301);
-	expect(new URL(response.headers().location, 'http://x').pathname).toBe('/s/e2e-new-name');
+	const location = new URL(response.headers().location, 'http://x');
+	expect(location.pathname).toBe('/s/e2e-new-name');
+	expect(location.search).toBe('?utm_source=mail&x=1');
+});
+
+test('a malformed slug is a 404 at routing', async ({ page }) => {
+	const response = await page.goto('/s/Not_A_Slug');
+	expect(response?.status()).toBe(404);
 });

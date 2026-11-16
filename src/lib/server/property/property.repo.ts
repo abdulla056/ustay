@@ -78,6 +78,20 @@ export async function lockPropertyOrThrow(id: string, tx: Executor = db) {
 	return row;
 }
 
+/**
+ * Resolve a retired slug to its property's current slug and status in one query, so a caller can
+ * decide whether to redirect without a second lookup. `undefined` if it was never a slug.
+ */
+export async function findRedirectTarget(oldSlug: string, tx: Executor = db) {
+	const [row] = await tx
+		.select({ slug: property.slug, status: property.status })
+		.from(propertySlugRedirect)
+		.innerJoin(property, eq(propertySlugRedirect.propertyId, property.id))
+		.where(eq(propertySlugRedirect.oldSlug, oldSlug))
+		.limit(1);
+	return row;
+}
+
 /** Resolve a retired slug to the property's current slug. `undefined` if it was never a slug. */
 export async function findRedirectedSlug(oldSlug: string, tx: Executor = db) {
 	const [row] = await tx

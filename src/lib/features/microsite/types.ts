@@ -148,6 +148,8 @@ export type AttractionView = {
 export type LocationData = {
 	/** The public projection. Address lines are present only when the owner shows the exact place. */
 	place: {
+		/** "Locality, region": computed once, shown by the hero and the location section. */
+		label: string;
 		locality: string;
 		region: string | null;
 		countryCode: string;

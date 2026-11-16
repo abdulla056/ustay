@@ -1,6 +1,7 @@
 <script lang="ts">
 	// Placeholder hero (UST-21). UST-23 replaces the internals; the props contract stays.
 	import { Container, Eyebrow, Heading, Image, Section, Text } from '$lib';
+	import { objectPosition } from '$lib/features/gallery/layouts';
 	import type { SectionProps } from '../types';
 
 	let { data }: SectionProps<'hero'> = $props();
@@ -24,8 +25,7 @@
 				ratio="16/9"
 				loading="eager"
 				class="mt-12"
-				style="object-position: {(data.image.focalX ?? 0.5) * 100}% {(data.image.focalY ?? 0.5) *
-					100}%"
+				style="object-position: {objectPosition(data.image)}"
 			/>
 		{/if}
 	</Container>
