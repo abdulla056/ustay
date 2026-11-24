@@ -2,15 +2,15 @@
 	// Full-screen photograph viewer, shared by every gallery variant.
 	//
 	// A native modal `<dialog>` (the NavMenu pattern): `showModal()` puts it in the top layer, makes
-	// the page inert (the focus trap) and turns Esc into a `cancel` event. Scroll is locked the same
-	// way as the menu (Lenis stopped, root overflow hidden). Left/Right move between photographs, and
+	// the page inert (the focus trap) and turns Esc into a `cancel` event. Scroll is locked with the shared
+	// `lockScroll()`. Left/Right move between photographs, and
 	// the neighbours are preloaded so a step never waits on the network. Focus returns to the opener
 	// the parent passes in (never `document.activeElement`, which Safari does not set on click).
 	//
 	// Two-way contract: set `index` to open; clear it to close. Closing any other way (Esc, the
 	// button, a tap outside the photograph) clears it for you.
 	import { onDestroy } from 'svelte';
-	import { getSmoothScroller } from '$lib/motion';
+	import { lockScroll } from '$lib/motion';
 	import type { GalleryFrame } from '$lib/features/gallery/types';
 
 	type Props = {
@@ -31,25 +31,11 @@
 	const frame = $derived(index === null ? null : (frames[index] ?? null));
 	const count = $derived(frames.length);
 
-	function lockScroll() {
-		if (releaseScroll) return;
-		const root = document.documentElement;
-		const previous = root.style.overflow;
-		const lenis = getSmoothScroller();
-		lenis?.stop();
-		root.style.overflow = 'hidden';
-		releaseScroll = () => {
-			root.style.overflow = previous;
-			lenis?.start();
-			releaseScroll = undefined;
-		};
-	}
-
 	$effect(() => {
 		if (!dialog) return;
 		if (index !== null && !dialog.open) {
 			dialog.showModal();
-			lockScroll();
+			releaseScroll ??= lockScroll();
 			closeButton?.focus();
 		} else if (index === null && dialog.open) {
 			dialog.close(); // runs `onclose`: scroll lock released, focus returned
@@ -85,6 +71,7 @@
 	function onclose() {
 		index = null;
 		releaseScroll?.();
+		releaseScroll = undefined;
 		if (opener?.isConnected) opener.focus();
 	}
 
