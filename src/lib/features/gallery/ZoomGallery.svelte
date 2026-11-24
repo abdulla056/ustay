@@ -22,9 +22,14 @@
 		/** Scroll distance of the zoom as a CSS length. Default `300vh`, the prototype's. */
 		scrollLength?: string;
 		class?: string;
+		/**
+		 * Makes every frame activatable (click, Enter, Space) with a stretched button over it, in the
+		 * static grid and on the zoom stage alike. `el` is the button, to hand focus back to.
+		 */
+		onselect?: (index: number, el: HTMLElement) => void;
 	};
 
-	let { frames, label, scrollLength = '300vh', class: className }: Props = $props();
+	let { frames, label, scrollLength = '300vh', class: className, onselect }: Props = $props();
 
 	const shown = $derived(clampFrames(frames));
 	const slots = $derived(layoutFor(shown.length));
@@ -115,6 +120,7 @@
 	data-zoom-gallery
 	data-mode={zoom ? 'zoom' : 'static'}
 	data-count={shown.length}
+	data-selectable={onselect ? '' : undefined}
 	style:--zg-length={scrollLength}
 	class={['zg px-gutter py-section-sm', className]}
 >
@@ -141,6 +147,14 @@
 						imgClass="h-full!"
 						style="object-position: {objectPosition(frame)}"
 					/>
+					{#if onselect}
+						<button
+							type="button"
+							class="zg__select"
+							aria-label="View photograph {i + 1} of {shown.length}"
+							onclick={(event) => onselect(i, event.currentTarget)}
+						></button>
+					{/if}
 				</div>
 				{#if frame.caption && !zoom}
 					<figcaption class="zg__caption">{frame.caption}</figcaption>
@@ -162,7 +176,22 @@
 		grid-column: span 3;
 	}
 	.zg__frame {
+		position: relative;
 		aspect-ratio: 4 / 3;
+	}
+	/* The stretched button: over the whole frame, invisible until focused. */
+	.zg__select {
+		position: absolute;
+		inset: 0;
+		z-index: 1;
+		cursor: pointer;
+		background: transparent;
+		border: 0;
+		padding: 0;
+	}
+	.zg__select:focus-visible {
+		outline: 2px solid currentColor;
+		outline-offset: -4px;
 	}
 	.zg__caption {
 		margin-top: 0.5rem;
@@ -220,6 +249,14 @@
 		align-items: center;
 		justify-content: center;
 		transform-origin: 50% 50%;
+	}
+	/* Every item is a full-stage box stacked on the others: only the frames take pointer input,
+	   or the top item would swallow clicks meant for the ones beneath it. */
+	.zg[data-mode='zoom'][data-selectable] .zg__item {
+		pointer-events: none;
+	}
+	.zg[data-mode='zoom'][data-selectable] .zg__frame {
+		pointer-events: auto;
 	}
 	.zg[data-mode='zoom']:global([data-active]) .zg__item {
 		will-change: transform;
