@@ -49,7 +49,7 @@
 	import { page } from '$app/state';
 	import { onDestroy, onMount, tick, untrack } from 'svelte';
 	import { MediaQuery } from 'svelte/reactivity';
-	import { getSmoothScroller } from '$lib/motion';
+	import { lockScroll as lockPageScroll } from '$lib/motion';
 	import NavCta from './NavCta.svelte';
 	import Wordmark from './Wordmark.svelte';
 	import { currentPage, isModifiedClick, jumpToAnchor, type NavLink } from './nav';
@@ -86,22 +86,15 @@
 	// the desktop bar has no toggle to close it with.
 	const desktop = new MediaQuery('min-width: 48rem', false);
 
-	let releaseScroll: (() => void) | undefined;
+	let unlockScroll: (() => void) | undefined;
 
 	function lockScroll() {
-		if (releaseScroll) return;
-		const root = document.documentElement;
-		const previous = root.style.overflow;
-		const lenis = getSmoothScroller();
+		unlockScroll ??= lockPageScroll();
+	}
 
-		lenis?.stop();
-		root.style.overflow = 'hidden';
-
-		releaseScroll = () => {
-			root.style.overflow = previous;
-			lenis?.start();
-			releaseScroll = undefined;
-		};
+	function releaseScroll() {
+		unlockScroll?.();
+		unlockScroll = undefined;
 	}
 
 	function show() {
@@ -134,7 +127,7 @@
 		if (!dialog?.open || closing || !panel) return;
 		closing = true;
 		entered = false;
-		releaseScroll?.();
+		releaseScroll();
 
 		await tick();
 		const wait = exitDuration(panel);
@@ -159,7 +152,7 @@
 		expanded = false;
 		entered = false;
 		closing = false;
-		releaseScroll?.();
+		releaseScroll();
 	}
 
 	function oncancel(event: Event) {
@@ -191,7 +184,7 @@
 		enhanced = true;
 	});
 
-	onDestroy(() => releaseScroll?.());
+	onDestroy(() => releaseScroll());
 
 	const number = (index: number) => String(index + 1).padStart(2, '0');
 

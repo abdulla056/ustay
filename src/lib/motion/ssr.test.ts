@@ -15,6 +15,7 @@ describe('$lib/motion on the server', () => {
 			'displayEntrance',
 			'getSmoothScroller',
 			'imageReveal',
+			'lockScroll',
 			'motionDefaults',
 			'pageTone',
 			'parallax',
