@@ -7,16 +7,10 @@
 		component: BookingCtaSection,
 		parameters: { layout: 'fullscreen' }
 	});
-
-	// The reveal rises and fades in; let it settle so the a11y check measures the final colours.
-	const settled = async () => {
-		await new Promise((resolve) => setTimeout(resolve, 1800));
-	};
 </script>
 
 <Story
 	name="Rumah Kabus"
-	play={settled}
 	args={{
 		variant: 'default',
 		data: {
@@ -33,7 +27,6 @@
 
 <Story
 	name="No price, long name"
-	play={settled}
 	args={{
 		variant: 'default',
 		data: {
