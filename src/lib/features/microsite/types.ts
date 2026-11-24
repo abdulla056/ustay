@@ -91,6 +91,8 @@ export type OverviewData = {
 	shortDescription: string | null;
 	/** The long description split into paragraphs (plain text). */
 	paragraphs: string[];
+	/** "Tanah Rata, Pahang" style label from the public location; null without a location. */
+	placeLabel: string | null;
 	roomCount: number;
 	/** The largest `maxGuests` across rooms; null without rooms. */
 	maxGuests: number | null;
@@ -189,7 +191,16 @@ export type SectionDataMap = {
 };
 
 /** The props contract every section component receives. */
-export type SectionProps<T extends SectionType> = { data: SectionDataMap[T]; variant: string };
+export type SectionProps<T extends SectionType> = {
+	data: SectionDataMap[T];
+	variant: string;
+	/**
+	 * The editorial spine number ("01", "02"...) the renderer assigns by position, in render order,
+	 * skipping `hero` and `booking_cta`. Optional: a section without a spine label ignores it, and
+	 * null means "show no number".
+	 */
+	number?: string | null;
+};
 
 /** An ordered discriminated union keyed by `type`. */
 export type SectionView = {

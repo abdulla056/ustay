@@ -1,5 +1,5 @@
 /** Shared formatting for microsite sections. Pure and client-safe. */
-import type { Money } from './types';
+import type { Money, OverviewData, ReviewView } from './types';
 
 /**
  * Format integer minor units in a currency. The exponent comes from `Intl` (2 for MYR, 0 for JPY,
@@ -23,4 +23,41 @@ export function formatMoney({ amountMinor, currency }: Money, locale = 'en-MY'):
 /** Local calendar date as `YYYY-MM-DD` (what `<input type="date">` uses). */
 export function toIsoDate(date: Date): string {
 	return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
+const TYPE_LABELS: Record<OverviewData['type'], string> = {
+	homestay: 'Homestay',
+	resort: 'Resort',
+	boutique: 'Boutique stay',
+	rental: 'Rental'
+};
+
+/** Human label for a property type. */
+export const typeLabel = (type: OverviewData['type']): string => TYPE_LABELS[type];
+
+/** `1 room`, `3 rooms`. */
+export const plural = (n: number, one: string, many: string): string =>
+	`${n} ${n === 1 ? one : many}`;
+
+export const QUOTE_MAX = 280;
+
+/**
+ * The review to feature as a pull-quote, and the text to show. The first review at or under
+ * `QUOTE_MAX` characters wins; otherwise the shortest, cut at a word boundary with an ellipsis.
+ * Never a wall of text. Null for no reviews.
+ */
+export function pickFeaturedQuote(
+	items: ReviewView[]
+): { index: number; review: ReviewView; text: string } | null {
+	if (items.length === 0) return null;
+	let index = items.findIndex((r) => r.body.length <= QUOTE_MAX);
+	if (index === -1) {
+		index = items.reduce((best, r, i) => (r.body.length < items[best].body.length ? i : best), 0);
+	}
+	const review = items[index];
+	if (review.body.length <= QUOTE_MAX) return { index, review, text: review.body };
+	const cut = review.body.slice(0, QUOTE_MAX);
+	const lastSpace = cut.lastIndexOf(' ');
+	const trimmed = (lastSpace > 0 ? cut.slice(0, lastSpace) : cut).replace(/[\s,.;:!?-]+$/, '');
+	return { index, review, text: `${trimmed}…` };
 }

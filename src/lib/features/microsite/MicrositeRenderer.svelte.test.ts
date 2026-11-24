@@ -28,6 +28,23 @@ describe('MicrositeRenderer', () => {
 		expect(order).toEqual(['location', 'hero', 'rooms']);
 	});
 
+	it('numbers editorial sections by position and skips hero and booking_cta', async () => {
+		render(MicrositeRenderer, {
+			view: viewOf('hero', 'overview', 'rooms', 'location', 'booking_cta'),
+			components: {
+				hero: StubSection,
+				overview: StubSection,
+				rooms: StubSection,
+				location: StubSection,
+				booking_cta: StubSection
+			} as never
+		});
+		const numbers = [...document.querySelectorAll('[data-section]')].map((n) =>
+			n.getAttribute('data-number')
+		);
+		expect(numbers).toEqual([null, '01', '02', '03', null]);
+	});
+
 	it('degrades one throwing section to nothing and keeps the rest', async () => {
 		vi.spyOn(console, 'error').mockImplementation(() => {});
 		const screen = render(MicrositeRenderer, {

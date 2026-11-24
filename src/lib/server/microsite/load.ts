@@ -295,6 +295,7 @@ async function loadInSnapshot(slug: string, tx: Executor): Promise<LoadMicrosite
 						type: found.type,
 						shortDescription: found.shortDescription,
 						paragraphs: longDescription,
+						placeLabel: place?.label ?? null,
 						roomCount: rooms.length,
 						maxGuests,
 						fromPrice,
