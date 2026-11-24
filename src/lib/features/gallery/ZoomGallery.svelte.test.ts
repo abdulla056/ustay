@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'vitest-browser-svelte';
+import { userEvent } from 'vitest/browser';
 import ZoomGallery from './ZoomGallery.svelte';
 import type { GalleryFrame } from './types';
 
@@ -53,6 +54,24 @@ describe('ZoomGallery', () => {
 
 		await expect.element(screen.getByRole('img', { name: 'Frame 2' })).toBeInTheDocument();
 		await expect.element(screen.getByText('First light')).toBeVisible();
+	});
+
+	it('onselect makes each frame a labelled button that reports its index and element', async () => {
+		setReducedMotion(true);
+		const onselect = vi.fn();
+		const screen = render(ZoomGallery, { frames: frames(3), label: 'Gallery', onselect });
+
+		const second = screen.getByRole('button', { name: 'View photograph 2 of 3' });
+		(second.element() as HTMLElement).focus();
+		await userEvent.keyboard('{Enter}');
+		expect(onselect).toHaveBeenCalledTimes(1);
+		expect(onselect).toHaveBeenCalledWith(1, second.element());
+	});
+
+	it('without onselect there are no buttons', async () => {
+		setReducedMotion(true);
+		render(ZoomGallery, { frames: frames(3), label: 'Gallery' });
+		expect(document.querySelectorAll('.zg button')).toHaveLength(0);
 	});
 
 	it('uses focal points as object-position', async () => {
