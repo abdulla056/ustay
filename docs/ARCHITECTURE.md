@@ -193,7 +193,10 @@ the page (boundaries do not catch server-render errors). `number` is the editori
 **Markdown rule.** Owner-authored markdown (the story body, the host bio) becomes HTML only in
 `$lib/server/microsite/markdown.ts`: `markdown-it` with `html: false` and its default link
 validation (no `javascript:`, `vbscript:` or `data:` links), with `rel="noopener noreferrer"` on
-external links. The view carries `{ html }`, and `{@html}` may be used on that and nothing else.
+external links. Headings shift down to h3 to h6, and the `code`, `fence`, `table` and `image` rules
+are off. The view carries `{ html }`, and `{@html}` may be used on that and nothing else. Sections
+render it through `$lib/components/RichText.svelte`, which owns the `{@html}` call and the prose
+styles.
 
 ### Route conventions
 

@@ -1,57 +1,97 @@
 <script lang="ts">
-	// Placeholder host and story (UST-21). UST-28 replaces the internals; the props contract stays.
-	// `html` is server-rendered markdown (`html: false`, safe links): the only thing `{@html}` may take.
-	import { Container, Eyebrow, Heading, Image, Section, Stack, Text } from '$lib';
+	// Host and story (UST-28): the authenticity centrepiece. A long-form, well-measured read, then
+	// the host. The spine label is the section's h2; the story heading is display type. Owner prose
+	// arrives as server-rendered markdown and goes through `RichText`.
+	import { Container, Eyebrow, Heading, Image, Label, RichText, Section } from '$lib';
+	import { objectPosition } from '$lib/features/gallery/layouts';
+	import { reveal } from '$lib/motion';
+	import { languageName } from '../format';
 	import type { SectionProps } from '../types';
 
-	let { data }: SectionProps<'host_story'> = $props();
+	let { data, number = null }: SectionProps<'host_story'> = $props();
+
+	const languages = $derived((data.host?.languages ?? []).map(languageName));
+	const initial = $derived(Array.from(data.host?.displayName.trim() ?? '')[0]?.toUpperCase() ?? '');
 </script>
 
-<Section label="Host and story" space="md" data-section="host_story">
-	<Container size="narrow">
-		<Stack gap="lg">
+<Section aria-labelledby="host-story-heading" space="lg" data-section="host_story">
+	<Container size="content">
+		<div class="space-y-24 md:space-y-32">
 			{#if data.story}
-				<Stack gap="sm">
-					<Eyebrow tone="accent">The story</Eyebrow>
-					<Heading level={2} size="lg" tone="content">
-						{data.story.heading ?? 'Our story'}
-					</Heading>
-					<div class="space-y-4 text-content-prose">
-						<!-- eslint-disable-next-line svelte/no-at-html-tags -->
-						{@html data.story.body.html}
+				<div class="grid gap-8 lg:grid-cols-12 lg:gap-12">
+					<header class="lg:sticky lg:top-28 lg:col-span-5 lg:self-start" {@attach reveal()}>
+						<Label as="h2" id="host-story-heading" number={number ?? undefined}>The story</Label>
+						<Heading as="p" size="lg" tone="content" class="mt-4">
+							{data.story.heading ?? 'Our story'}
+						</Heading>
+					</header>
+					<div class="lg:col-span-7">
+						<RichText html={data.story.body.html} {@attach reveal({ y: 24 })} />
 					</div>
-				</Stack>
+				</div>
 			{/if}
+
 			{#if data.host}
-				<Stack gap="sm">
-					<Eyebrow tone="accent">Your host</Eyebrow>
-					<Heading level={data.story ? 3 : 2} size="md" tone="content">
-						{data.host.displayName}
-					</Heading>
-					{#if data.host.avatar}
-						<Image
-							src={data.host.avatar.src}
-							alt={data.host.avatar.alt}
-							width={data.host.avatar.width}
-							height={data.host.avatar.height}
-							ratio="1/1"
-							class="w-32"
-						/>
-					{/if}
-					{#if data.host.bio}
-						<div class="space-y-4 text-content-prose">
-							<!-- eslint-disable-next-line svelte/no-at-html-tags -->
-							{@html data.host.bio.html}
-						</div>
-					{/if}
-					<Text size="sm" tone="muted">
-						{#if data.host.hostingSince}Hosting since {data.host.hostingSince}.{/if}
-						{#if data.host.languages.length > 0}
-							Speaks {data.host.languages.join(', ')}.
+				<div
+					class="grid items-start gap-10 md:grid-cols-12 md:gap-12"
+					data-part="host"
+					{@attach reveal({ y: 24 })}
+				>
+					<div class="md:col-span-5">
+						{#if data.host.avatar}
+							<Image
+								src={data.host.avatar.src}
+								alt={data.host.avatar.alt}
+								width={data.host.avatar.width}
+								height={data.host.avatar.height}
+								ratio="4/5"
+								class="w-full max-w-sm"
+								style="object-position: {objectPosition(data.host.avatar)}"
+							/>
+						{:else}
+							<div
+								class="flex aspect-[4/5] w-full max-w-sm items-center justify-center rounded-image bg-content/5 font-display text-7xl text-accent-c"
+								aria-hidden="true"
+							>
+								{initial}
+							</div>
 						{/if}
-					</Text>
-				</Stack>
+					</div>
+					<div class="md:col-span-7">
+						{#if data.story}
+							<Eyebrow tone="accent">Your host</Eyebrow>
+						{:else}
+							<Label as="h2" id="host-story-heading" number={number ?? undefined}>Your host</Label>
+						{/if}
+						<Heading level={3} size="md" tone="content" class="mt-4">
+							{data.host.displayName}
+						</Heading>
+						{#if data.host.bio}
+							<RichText html={data.host.bio.html} class="mt-8" />
+						{/if}
+						{#if data.host.hostingSince || languages.length > 0}
+							<dl class="mt-10 flex flex-wrap gap-x-12 gap-y-6 border-t border-hairline-c pt-6">
+								{#if data.host.hostingSince}
+									<div>
+										<Eyebrow as="dt" tone="muted">Hosting since</Eyebrow>
+										<dd class="mt-2 font-display text-display-xs text-content">
+											{data.host.hostingSince}
+										</dd>
+									</div>
+								{/if}
+								{#if languages.length > 0}
+									<div>
+										<Eyebrow as="dt" tone="muted">Speaks</Eyebrow>
+										<dd class="mt-2 font-display text-display-xs text-content">
+											{languages.join(', ')}
+										</dd>
+									</div>
+								{/if}
+							</dl>
+						{/if}
+					</div>
+				</div>
 			{/if}
-		</Stack>
+		</div>
 	</Container>
 </Section>

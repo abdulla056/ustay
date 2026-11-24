@@ -57,4 +57,22 @@ describe('renderMarkdown', () => {
 		expect(internal).toContain('href="/s/rumah-kabus"');
 		expect(internal).not.toContain('rel=');
 	});
+
+	it('shifts heading levels so owner text never makes an h1 or h2', () => {
+		const html = renderMarkdown('# A\n\n## B\n\n### C\n\n###### F');
+		expect(html).toContain('<h3>A</h3>');
+		expect(html).toContain('<h4>B</h4>');
+		expect(html).toContain('<h5>C</h5>');
+		expect(html).toContain('<h6>F</h6>');
+		expect(html).not.toMatch(/<h[12]/);
+	});
+
+	it('renders indented text, fences and tables as plain paragraphs', () => {
+		const html = renderMarkdown(
+			'Intro.\n\n    indented line\n\n```\nfenced\n```\n\n| a | b |\n| - | - |\n| 1 | 2 |'
+		);
+		expect(html).not.toMatch(/<(pre|table)/);
+		expect(html).toContain('indented line');
+		expect(html).toContain('fenced');
+	});
 });

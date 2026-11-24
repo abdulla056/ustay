@@ -8,6 +8,10 @@
  * - The `image` rule is off: `![x](http://tracker/p.gif)` stays literal text, never an `<img>`.
  * - markdown-it's default `validateLink` stays on: `javascript:`, `vbscript:`, `file:` and `data:`
  *   links (images excepted for `data:`) are not turned into links at all.
+ * - Headings shift down two levels (`#` becomes h3, `##` h4, `###` h5, deeper clamps at h6), so
+ *   owner text never collides with the page h1 or a section's h2.
+ * - The `code`, `fence` and `table` rules are off: indented text is a paragraph, and nothing can
+ *   overflow a phone screen.
  * - External links (`http(s)://` or `//`) get `rel="noopener noreferrer"` and open in a new tab.
  *
  * The output is safe for `{@html}`. Do not render any other owner text that way.
@@ -18,6 +22,14 @@ const md = new MarkdownIt({ html: false, linkify: false, typographer: true });
 // No inline images: they would bypass the media URL rule (third-party trackers, `data:` URIs).
 // Photographs come from the media library only.
 md.disable('image');
+md.disable(['code', 'fence', 'table']);
+
+md.core.ruler.push('shift_headings', (state) => {
+	for (const token of state.tokens) {
+		if (token.type !== 'heading_open' && token.type !== 'heading_close') continue;
+		token.tag = `h${Math.min(6, Number(token.tag.slice(1)) + 2)}`;
+	}
+});
 
 const isExternal = (href: string) => /^(?:https?:)?\/\//i.test(href);
 
