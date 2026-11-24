@@ -72,7 +72,12 @@
 			}
 		]
 	};
+
+	// reveal() fades content in; let it finish so the a11y check never sees mid-fade text.
+	const play = async () => {
+		await new Promise((resolve) => setTimeout(resolve, 3000));
+	};
 </script>
 
-<Story name="Rumah Kabus" args={{ data: rumahKabus, variant: 'default' }} />
-<Story name="Edge: no images, no description" args={{ data: edge, variant: 'default' }} />
+<Story name="Rumah Kabus" args={{ data: rumahKabus, variant: 'default' }} {play} />
+<Story name="Edge: no images, no description" args={{ data: edge, variant: 'default' }} {play} />
