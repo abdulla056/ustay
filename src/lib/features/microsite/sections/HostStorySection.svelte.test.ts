@@ -23,8 +23,9 @@ describe('HostStorySection', () => {
 	it('renders story, host and facts, keeping heading order', async () => {
 		const screen = render(HostStorySection, { data: full, variant: 'default' });
 		await expect
-			.element(screen.getByRole('heading', { level: 2, name: /watch the weather/ }))
+			.element(screen.getByRole('heading', { level: 2, name: 'The story' }))
 			.toBeVisible();
+		await expect.element(screen.getByText('A house built to watch the weather')).toBeVisible();
 		await expect
 			.element(screen.getByRole('heading', { level: 3, name: 'Hajar Mansor' }))
 			.toBeVisible();
@@ -44,7 +45,10 @@ describe('HostStorySection', () => {
 			variant: 'default'
 		});
 		await expect
-			.element(screen.getByRole('heading', { level: 2, name: 'Hajar Mansor' }))
+			.element(screen.getByRole('heading', { level: 2, name: 'Your host' }))
+			.toBeVisible();
+		await expect
+			.element(screen.getByRole('heading', { level: 3, name: 'Hajar Mansor' }))
 			.toBeVisible();
 		expect(document.querySelector('img')).toBeNull();
 		expect(document.body.textContent).not.toContain('Hosting since');
@@ -53,5 +57,38 @@ describe('HostStorySection', () => {
 	it('shows the spine number only when given one', async () => {
 		render(HostStorySection, { data: full, variant: 'default', number: '04' });
 		expect(document.body.textContent).toContain('04 — The story');
+	});
+
+	it('maps codes, uppercases unknown ones and leaves free text alone', async () => {
+		const screen = render(HostStorySection, {
+			data: { story: null, host: { ...full.host!, languages: ['en', 'English', 'xx', 'zh-Hans'] } },
+			variant: 'default'
+		});
+		await expect.element(screen.getByText('English, English, XX, Chinese')).toBeVisible();
+	});
+
+	it('keeps headings inside the owner prose below the section h2', async () => {
+		render(HostStorySection, {
+			data: {
+				...full,
+				story: { heading: null, body: { html: '<h3>The restoration</h3><p>x</p>' } }
+			},
+			variant: 'default'
+		});
+		expect(document.querySelectorAll('[data-section="host_story"] h1')).toHaveLength(0);
+		expect(document.querySelectorAll('[data-section="host_story"] h2')).toHaveLength(1);
+		expect(document.querySelector('[data-section="host_story"] h3')?.textContent).toBe(
+			'The restoration'
+		);
+	});
+
+	it('takes the first character of a name that starts with an emoji', async () => {
+		render(HostStorySection, {
+			data: { story: null, host: { ...full.host!, displayName: '🌿 Hajar', avatar: null } },
+			variant: 'default'
+		});
+		expect(document.querySelector('[aria-hidden="true"].font-display')?.textContent?.trim()).toBe(
+			'🌿'
+		);
 	});
 });

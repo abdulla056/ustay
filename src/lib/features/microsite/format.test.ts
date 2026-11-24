@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatMoney, pickFeaturedQuote } from './format';
+import { formatMoney, languageName, pickFeaturedQuote } from './format';
 import type { ReviewView } from './types';
 
 describe('formatMoney', () => {
@@ -51,5 +51,21 @@ describe('pickFeaturedQuote', () => {
 		expect(q?.index).toBe(1);
 		expect(q?.text.endsWith('word…')).toBe(true);
 		expect(q!.text.length).toBeLessThanOrEqual(281);
+	});
+});
+
+describe('languageName', () => {
+	it('maps known codes and region variants', () => {
+		expect(languageName('en')).toBe('English');
+		expect(languageName('ms')).toBe('Malay');
+		expect(languageName('zh-Hans')).toBe('Chinese');
+	});
+	it('uppercases unknown codes', () => {
+		expect(languageName('xx')).toBe('XX');
+		expect(languageName('qaa')).toBe('QAA');
+	});
+	it('passes free text through unchanged', () => {
+		expect(languageName('English')).toBe('English');
+		expect(languageName('Bahasa Malaysia')).toBe('Bahasa Malaysia');
 	});
 });

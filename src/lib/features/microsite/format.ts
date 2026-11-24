@@ -61,3 +61,40 @@ export function pickFeaturedQuote(
 	const trimmed = (lastSpace > 0 ? cut.slice(0, lastSpace) : cut).replace(/[\s,.;:!?-]+$/, '');
 	return { index, review, text: `${trimmed}…` };
 }
+
+const LANGUAGE_NAMES: Record<string, string> = {
+	en: 'English',
+	ms: 'Malay',
+	zh: 'Chinese',
+	ta: 'Tamil',
+	hi: 'Hindi',
+	ar: 'Arabic',
+	fr: 'French',
+	de: 'German',
+	es: 'Spanish',
+	ja: 'Japanese',
+	ko: 'Korean',
+	id: 'Indonesian',
+	th: 'Thai',
+	vi: 'Vietnamese',
+	it: 'Italian',
+	pt: 'Portuguese',
+	ru: 'Russian',
+	nl: 'Dutch',
+	tl: 'Filipino',
+	bn: 'Bengali'
+};
+
+const LANGUAGE_CODE = /^[a-z]{2,3}(-[A-Za-z0-9]+)*$/i;
+
+/**
+ * A language for display. Only values shaped like a code (`en`, `zh-Hans`) are mapped, from a fixed
+ * table so server and client always agree (no `Intl.DisplayNames`). Known codes give their English
+ * name, unknown codes show uppercased (`PT`), and free text ("English") passes through unchanged.
+ */
+export function languageName(value: string): string {
+	const trimmed = value.trim();
+	if (!LANGUAGE_CODE.test(trimmed)) return trimmed;
+	const base = trimmed.split('-')[0].toLowerCase();
+	return LANGUAGE_NAMES[base] ?? trimmed.toUpperCase();
+}

@@ -18,6 +18,7 @@ export { default as Heading } from './components/Heading.svelte';
 export { default as Text } from './components/Text.svelte';
 export { default as Eyebrow } from './components/Eyebrow.svelte';
 export { default as Label } from './components/Label.svelte';
+export { default as RichText } from './components/RichText.svelte';
 
 // Actions
 export { default as Button } from './components/Button.svelte';
