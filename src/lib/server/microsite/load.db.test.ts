@@ -58,6 +58,9 @@ describe('loadMicrosite', () => {
 		const rooms = view.sections.find((s) => s.type === 'rooms')!;
 		if (rooms.type !== 'rooms') throw new Error('unreachable');
 		expect(rooms.data.rooms.length).toBeGreaterThan(1);
+		const cta = view.sections.find((s) => s.type === 'booking_cta');
+		if (cta?.type !== 'booking_cta') throw new Error('missing booking_cta');
+		expect(cta.data.rooms.map((r) => r.name)).toEqual(rooms.data.rooms.map((r) => r.name));
 		expect(rooms.data.rooms.every((r) => r.image !== null)).toBe(true);
 		expect(rooms.data.rooms.some((r) => r.amenities.length > 0)).toBe(true);
 		const location = view.sections.find((s) => s.type === 'location')!;
@@ -199,6 +202,7 @@ describe('loadMicrosite', () => {
 		const cta = view.sections.at(-1)!;
 		if (cta.type !== 'booking_cta') throw new Error('unreachable');
 		expect(cta.data.fromPrice).toBeNull();
+		expect(cta.data.rooms).toEqual([]);
 		expect(view.seo.priceRange).toBeNull();
 		expect(view.seo.address).toBeNull();
 	});

@@ -327,7 +327,12 @@ async function loadInSnapshot(slug: string, tx: Executor): Promise<LoadMicrosite
 							: null,
 						attractions: attractionViews
 					},
-		booking_cta: (): BookingCtaData => ({ name: found.name, fromPrice, maxGuests })
+		booking_cta: (): BookingCtaData => ({
+			name: found.name,
+			rooms: rooms.map((r) => ({ key: r.id, name: r.name })),
+			fromPrice,
+			maxGuests
+		})
 	};
 
 	const sections: SectionView[] = [];

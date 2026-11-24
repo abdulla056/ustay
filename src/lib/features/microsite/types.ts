@@ -170,6 +170,8 @@ export type LocationData = {
 
 export type BookingCtaData = {
 	name: string;
+	/** Rooms for the optional room select. `key` is opaque. */
+	rooms: { key: string; name: string }[];
 	fromPrice: Money | null;
 	maxGuests: number | null;
 };

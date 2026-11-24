@@ -21,6 +21,10 @@
 		variant: 'default',
 		data: {
 			name: 'Rumah Kabus',
+			rooms: [
+				{ key: 'r1', name: 'Garden Room' },
+				{ key: 'r2', name: 'Loft' }
+			],
 			fromPrice: { amountMinor: 28000, currency: 'MYR' },
 			maxGuests: 8
 		}
@@ -34,6 +38,7 @@
 		variant: 'default',
 		data: {
 			name: 'The Very Long Named Heritage Boutique Residence of the Highlands',
+			rooms: [],
 			fromPrice: null,
 			maxGuests: null
 		}
