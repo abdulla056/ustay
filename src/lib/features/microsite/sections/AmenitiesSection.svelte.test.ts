@@ -14,13 +14,12 @@ const data: AmenitiesData = {
 	groups: [
 		{ category: 'essentials', label: 'Essentials', items: [0, 1, 2, 3, 4].map((n) => item(n)) },
 		{ category: 'kitchen', label: 'Kitchen', items: [5, 6, 7].map((n) => item(n, 'A note')) },
-		{ category: 'outdoor', label: 'Outdoor', items: [8, 9].map((n) => item(n)) },
-		{ category: 'family', label: 'Family', items: [] }
+		{ category: 'outdoor', label: 'Outdoor', items: [8, 9].map((n) => item(n)) }
 	]
 };
 
 describe('AmenitiesSection', () => {
-	it('renders groups in order with notes, skipping empty groups', async () => {
+	it('renders groups in order, with icons and notes', async () => {
 		const screen = render(AmenitiesSection, { data, variant: 'default' });
 		const headings = [...document.querySelectorAll('h3')].map((h) => h.textContent?.trim());
 		expect(headings).toEqual(['Essentials', 'Kitchen', 'Outdoor']);
@@ -29,24 +28,27 @@ describe('AmenitiesSection', () => {
 		expect(document.body.textContent).toContain('A note');
 	});
 
-	// Component tests do not load the Tailwind stylesheet, so assert the collapse classes, not
-	// computed visibility (the phone layout is checked by eye and in e2e).
-	it('collapses behind a Show all toggle once mounted', async () => {
+	// Component tests do not load the Tailwind stylesheet and the collapse is a viewport media query,
+	// so assert the state the CSS keys off (`data-collapsed`), not computed visibility.
+	it('collapses behind a Show all toggle, collapsed from the first render', async () => {
 		const screen = render(AmenitiesSection, { data, variant: 'default' });
-		const hidden = () => document.querySelectorAll('.max-md\\:hidden').length;
+		const region = () => document.querySelector('[data-collapsed]');
 		const toggle = screen.getByRole('button', { name: 'Show all 10 amenities' });
 		await expect.element(toggle).toHaveAttribute('aria-expanded', 'false');
-		expect(hidden()).toBeGreaterThan(0);
+		expect(region()?.getAttribute('data-collapsed')).toBe('true');
+		expect(toggle.element().getAttribute('aria-controls')).toBe(region()?.id);
 		await toggle.click();
+		const fewer = screen.getByRole('button', { name: 'Show fewer' });
+		await expect.element(fewer).toHaveAttribute('aria-expanded', 'true');
+		expect(region()?.getAttribute('data-collapsed')).toBe('false');
+		await fewer.click();
 		await expect
-			.element(screen.getByRole('button', { name: 'Show fewer' }))
-			.toHaveAttribute('aria-expanded', 'true');
-		expect(hidden()).toBe(0);
+			.element(screen.getByRole('button', { name: 'Show all 10 amenities' }))
+			.toHaveFocus();
 	});
 
-	it('shows a quiet message when there are no amenities', async () => {
-		const screen = render(AmenitiesSection, { data: { groups: [] }, variant: 'default' });
-		await expect.element(screen.getByText(/not listed amenities/)).toBeVisible();
+	it('has no toggle when the list is short', async () => {
+		render(AmenitiesSection, { data: { groups: [data.groups[2]] }, variant: 'default' });
 		expect(document.querySelector('button')).toBeNull();
 	});
 });

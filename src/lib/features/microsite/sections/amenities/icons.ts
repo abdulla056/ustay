@@ -25,7 +25,11 @@ import Sparkles from '@lucide/svelte/icons/sparkles';
 import Waves from '@lucide/svelte/icons/waves';
 import Wifi from '@lucide/svelte/icons/wifi';
 
-type IconComponent = Component<{ class?: string; strokeWidth?: number }>;
+type IconComponent = Component<{
+	class?: string;
+	strokeWidth?: number;
+	'aria-hidden'?: boolean | 'true' | 'false';
+}>;
 
 /** Amenity `icon` key (equal to the catalogue key for the standard set) to a Lucide icon. */
 export const AMENITY_ICONS: Record<string, IconComponent> = {

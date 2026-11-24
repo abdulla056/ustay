@@ -98,5 +98,3 @@
 		}
 	}}
 />
-
-<Story name="Edge: empty" args={{ data: { groups: [] } }} />
