@@ -60,6 +60,19 @@ describe('LocationSection', () => {
 		expect(document.querySelector('[data-map-status]')).toBeNull();
 	});
 
+	it('keeps the map host inert and hidden until it is ready', async () => {
+		render(LocationSection, { data: base, variant: 'default' });
+		const wrapper = document.querySelector('[data-map-status]')!;
+		const host = wrapper.querySelector('[role="region"]')!;
+		if (wrapper.getAttribute('data-map-status') !== 'ready') {
+			expect(host.hasAttribute('inert')).toBe(true);
+			expect(host.classList.contains('invisible')).toBe(true);
+		}
+		if (['idle', 'loading'].includes(wrapper.getAttribute('data-map-status')!)) {
+			expect(wrapper.textContent).toContain('about 2 km across');
+		}
+	});
+
 	it('shows address lines only when given', async () => {
 		const screen = render(LocationSection, {
 			data: { ...base, place: { ...base.place!, exact: true, addressLines: ['Jalan Teh'] } },

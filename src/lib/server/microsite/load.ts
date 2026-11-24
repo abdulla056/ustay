@@ -236,6 +236,11 @@ async function loadInSnapshot(slug: string, tx: Executor): Promise<LoadMicrosite
 					: []
 			}
 		: null;
+	// Decision 8: exact attraction pins plus precise distances would triangulate a hidden house, so
+	// for a non-exact property distances are rounded to 500 m with a 1 km floor.
+	const exactPlace = location?.showExactLocation ?? false;
+	const publicDistance = (m: number | null) =>
+		m === null || exactPlace ? m : Math.max(1000, Math.round(m / 500) * 500);
 	const attractionViews: AttractionView[] = attractions.map((a) => {
 		const image = a.mediaAssetId ? libraryById.get(a.mediaAssetId) : undefined;
 		return {
@@ -246,7 +251,7 @@ async function loadInSnapshot(slug: string, tx: Executor): Promise<LoadMicrosite
 				a.travelMinutes !== null && a.travelMode !== null
 					? { minutes: a.travelMinutes, mode: a.travelMode }
 					: null,
-			distanceMeters: a.distanceMeters,
+			distanceMeters: publicDistance(a.distanceMeters),
 			url: a.url,
 			latitude: a.latitude,
 			longitude: a.longitude,

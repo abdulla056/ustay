@@ -14,6 +14,10 @@ decision here.
 | 7   | Search              | Postgres-native search (filters + full-text) first. Add a dedicated search service only if it gets too slow.                                                                                                                                | 2026-11-10 | —      |
 | 8   | Location privacy    | Many homestays are the host's own home. Public pages show the locality and an approximate area only; the exact address and pin show only when the owner opts in (`property_location.show_exact_location`, default off). No revisit planned. | 2026-11-12 | UST-16 |
 
+Residual risk (decision 8): attraction pins are exact public places and travel times are shown, so
+many nearby attractions could still narrow a hidden house to a neighbourhood; distances are rounded
+to 500 m (1 km floor) while the location is hidden, and the owner controls which attractions exist.
+
 ## Money rules (from decision 2)
 
 - Arithmetic happens in integer minor units only. A stay total is `nightly_rate_minor × nights`,

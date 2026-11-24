@@ -1,6 +1,10 @@
 /** Pure map helpers for the location section. Client-safe, no maplibre import. */
 
-/** The privacy circle drawn when the exact location is hidden (decision 8). */
+/**
+ * The privacy circle drawn when the exact location is hidden (decision 8): a 1 km radius, so about
+ * 2 km across. The stored point is already coarsened to 2 decimals (about 1.1 km at most), so the
+ * circle still contains the true location.
+ */
 export const APPROX_RADIUS_METERS = 1000;
 
 const EARTH_RADIUS_M = 6_371_008.8;
@@ -33,14 +37,23 @@ export function circleRing(
 	return ring;
 }
 
-/** "12 min walk", "6.2 km", or null. */
-export function travelLabel(a: {
-	travel: { minutes: number; mode: string } | null;
-	distanceMeters: number | null;
-}): string | null {
+/**
+ * "12 min walk", "6.2 km", or null. With `approximate` (a hidden house, distances already
+ * coarsened to 500 m with a 1 km floor) distances read "under 1 km" or "about 6 km".
+ */
+export function travelLabel(
+	a: {
+		travel: { minutes: number; mode: string } | null;
+		distanceMeters: number | null;
+	},
+	approximate = false
+): string | null {
 	const parts: string[] = [];
 	if (a.travel) parts.push(`${a.travel.minutes} min ${a.travel.mode}`);
-	if (a.distanceMeters != null) {
+	if (a.distanceMeters != null && approximate) {
+		const km = (a.distanceMeters / 1000).toFixed(1).replace(/\.0$/, '');
+		parts.push(a.distanceMeters <= 1000 ? 'under 1 km' : `about ${km} km`);
+	} else if (a.distanceMeters != null) {
 		parts.push(
 			a.distanceMeters >= 1000
 				? `${(a.distanceMeters / 1000).toFixed(1).replace(/\.0$/, '')} km`

@@ -32,4 +32,11 @@ describe('travelLabel', () => {
 		);
 		expect(travelLabel({ travel: null, distanceMeters: null })).toBeNull();
 	});
+
+	it('words coarsened distances for a hidden house', () => {
+		const d = (distanceMeters: number) => travelLabel({ travel: null, distanceMeters }, true);
+		expect(d(1000)).toBe('under 1 km');
+		expect(d(6000)).toBe('about 6 km');
+		expect(d(6500)).toBe('about 6.5 km');
+	});
 });
