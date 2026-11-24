@@ -1,5 +1,18 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import { trackErrors } from './support/helpers';
+
+// Third-party origins (OpenFreeMap tiles, fonts) must not decide the result: answer them locally.
+async function stubThirdParty(page: Page, baseURL: string) {
+	await page.route(
+		(url) => url.origin !== new URL(baseURL).origin,
+		(route) =>
+			route.fulfill({
+				status: 200,
+				contentType: route.request().resourceType() === 'stylesheet' ? 'text/css' : 'text/plain',
+				body: ''
+			})
+	);
+}
 
 // The config order of the seeded editorial template (registry TEMPLATES.editorial).
 const SECTIONS = [
@@ -14,8 +27,10 @@ const SECTIONS = [
 ];
 
 test('/s/rumah-kabus renders every section in config order with no console errors', async ({
-	page
+	page,
+	baseURL
 }) => {
+	await stubThirdParty(page, baseURL!);
 	const tracked = trackErrors(page);
 	const response = await page.goto('/s/rumah-kabus');
 	expect(response?.status()).toBe(200);
@@ -33,8 +48,10 @@ test('/s/rumah-kabus renders every section in config order with no console error
 });
 
 test('@mobile /s/rumah-kabus renders at phone width without horizontal scroll', async ({
-	page
+	page,
+	baseURL
 }) => {
+	await stubThirdParty(page, baseURL!);
 	const tracked = trackErrors(page);
 	await page.goto('/s/rumah-kabus');
 	await expect(page.locator('h1')).toHaveText('Rumah Kabus');
