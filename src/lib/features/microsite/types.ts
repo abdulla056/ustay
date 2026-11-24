@@ -144,6 +144,9 @@ export type AttractionView = {
 	travel: { minutes: number; mode: string } | null;
 	distanceMeters: number | null;
 	url: string | null;
+	/** A public place, so exact. Both or neither (the schema enforces the pair). */
+	latitude: number | null;
+	longitude: number | null;
 	image: GalleryFrame | null;
 };
 

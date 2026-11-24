@@ -89,6 +89,32 @@ describe('loadMicrosite', () => {
 		expect(json).not.toContain(String(full.longitude));
 	});
 
+	it('gives attractions their exact coordinates (public places), not the property', async () => {
+		const view = await loadOk();
+		const location = view.sections.find((s) => s.type === 'location')!;
+		if (location.type !== 'location') throw new Error('unreachable');
+		const withCoords = location.data.attractions.filter((a) => a.latitude !== null);
+		expect(withCoords.length).toBeGreaterThan(0);
+		for (const a of withCoords) {
+			expect(typeof a.latitude).toBe('number');
+			expect(typeof a.longitude).toBe('number');
+		}
+	});
+
+	it('coarsens attraction distances while the location is hidden (500 m, 1 km floor)', async () => {
+		const view = await loadOk();
+		const location = view.sections.find((s) => s.type === 'location')!;
+		if (location.type !== 'location') throw new Error('unreachable');
+		const distances = location.data.attractions.flatMap((a) =>
+			a.distanceMeters === null ? [] : [a.distanceMeters]
+		);
+		expect(distances.length).toBeGreaterThan(0);
+		for (const d of distances) {
+			expect(d % 500).toBe(0);
+			expect(d).toBeGreaterThanOrEqual(1000);
+		}
+	});
+
 	it('carries no ids, owner, emails or token data', async () => {
 		const json = JSON.stringify(await loadOk());
 		for (const key of ['ownerId', 'propertyId', 'tokenHash', 'guestEmail', 'email', '"id"']) {
