@@ -64,6 +64,7 @@ describe('loadMicrosite', () => {
 		const hero = view.sections.find((s) => s.type === 'hero')!;
 		if (location.type !== 'location' || hero.type !== 'hero') throw new Error('unreachable');
 		expect(hero.data.locationLabel).toBe(location.data.place?.label);
+		expect(hero.data.bookingAnchor).toBe('#booking');
 	});
 
 	it('renders the story and host bio as HTML on the server', async () => {

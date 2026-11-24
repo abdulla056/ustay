@@ -1,20 +1,26 @@
 <script lang="ts">
 	// The hero (UST-23): a full-viewport photograph, dark tone, with the name in display type over it.
-	// The only `h1` on the page. The CTA anchors to the booking section (`#booking`, owned by UST-30).
+	// The only `h1` on the page. The CTA anchors to the booking section, and only renders when one exists.
 	import { Button, Container, Eyebrow, Heading, Image, Section, Text } from '$lib';
+	import { jumpToAnchor } from '$lib/components/nav';
 	import { objectPosition } from '$lib/features/gallery/layouts';
-	import { displayEntrance, reveal, scrollTo } from '$lib/motion';
+	import { displayEntrance, imageReveal, reveal } from '$lib/motion';
 	import type { SectionProps } from '../types';
 
 	let { data }: SectionProps<'hero'> = $props();
 
-	// Through the smooth scroller when it is running; the plain `#booking` href still works without JS.
-	function toBooking(event: MouseEvent) {
-		const target = document.getElementById('booking');
+	// Clears the fixed nav (the same offset the nav's own anchor links use).
+	const NAV_OFFSET = -96;
+
+	// A plain click goes through the smooth scroller (modifier and non-primary clicks are left to
+	// the browser, and the `href` still works without JS); focus then moves to the target so
+	// keyboard users land in the booking section.
+	function toBooking(event: MouseEvent, href: string) {
+		if (!jumpToAnchor(event, href, NAV_OFFSET)) return;
+		const target = document.getElementById(href.slice(1));
 		if (!target) return;
-		event.preventDefault();
-		scrollTo(target);
-		history.replaceState(history.state, '', '#booking');
+		if (!target.hasAttribute('tabindex')) target.setAttribute('tabindex', '-1');
+		target.focus({ preventScroll: true });
 	}
 </script>
 
@@ -30,13 +36,14 @@
 			alt={data.image.alt}
 			width={data.image.width}
 			height={data.image.height}
-			ratio="16/9"
+			ratio="auto"
 			rounded="none"
 			loading="eager"
 			fetchpriority="high"
-			class="absolute inset-0 -z-20 h-full w-full"
-			imgClass="hero-settle"
+			class="absolute inset-0 -z-20"
+			imgClass="h-full!"
 			style="object-position: {objectPosition(data.image)}"
+			{@attach imageReveal({ wipe: 'none', duration: 2.4 })}
 		/>
 		<!-- Scrim: keeps the type legible whatever the photograph does behind it. -->
 		<div
@@ -48,11 +55,11 @@
 	<!-- The top padding leaves room for the fixed nav. -->
 	<Container size="wide" class="relative pt-32 pb-16 md:pb-20">
 		{#if data.locationLabel}
-			<Eyebrow tone="inherit" class="mb-5 opacity-90" {@attach reveal({ y: 16, delay: 0.2 })}>
+			<Eyebrow tone="inherit" class="mb-5" {@attach reveal({ y: 16, delay: 0.2 })}>
 				{data.locationLabel}
 			</Eyebrow>
 		{/if}
-		<Heading level={1} size="xl" bleed class="text-balance" {@attach displayEntrance()}>
+		<Heading level={1} size="xl" bleed {@attach displayEntrance()}>
 			{data.name}
 		</Heading>
 		<div class="mt-8 flex flex-wrap items-end justify-between gap-x-10 gap-y-6">
@@ -61,26 +68,14 @@
 					{data.tagline}
 				</Text>
 			{/if}
-			<div {@attach reveal({ y: 20, delay: 0.7 })}>
-				<Button variant="paper" href="#booking" onclick={toBooking}>Request to stay</Button>
-			</div>
+			{#if data.bookingAnchor}
+				{@const href = data.bookingAnchor}
+				<div {@attach reveal({ y: 20, delay: 0.7 })}>
+					<Button variant="paper" {href} onclick={(event: MouseEvent) => toBooking(event, href)}>
+						Request to stay
+					</Button>
+				</div>
+			{/if}
 		</div>
 	</Container>
 </Section>
-
-<style>
-	/* A slow scale-settle on load; reduced motion gets the finished frame. */
-	@media (prefers-reduced-motion: no-preference) {
-		:global(.hero-settle) {
-			animation: hero-settle 2.4s var(--ease-editorial, cubic-bezier(0.22, 1, 0.36, 1)) both;
-		}
-	}
-	@keyframes hero-settle {
-		from {
-			transform: scale(1.08);
-		}
-		to {
-			transform: scale(1);
-		}
-	}
-</style>

@@ -57,6 +57,8 @@ export type HeroData = {
 	locationLabel: string | null;
 	/** The hero placement, else the first gallery photograph; null when the property has no photo. */
 	image: GalleryFrame | null;
+	/** `#booking` when the booking section is enabled and rendered, else null (the hero hides its CTA). */
+	bookingAnchor: string | null;
 };
 
 export type ReviewView = {

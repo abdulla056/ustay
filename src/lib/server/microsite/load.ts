@@ -278,7 +278,8 @@ async function loadInSnapshot(slug: string, tx: Executor): Promise<LoadMicrosite
 			name: found.name,
 			tagline: found.tagline,
 			locationLabel: place?.label ?? null,
-			image: heroImage
+			image: heroImage,
+			bookingAnchor: microsite.sections.some((s) => s.type === 'booking_cta') ? '#booking' : null
 		}),
 		overview: (): OverviewData | null =>
 			!found.shortDescription && longDescription.length === 0

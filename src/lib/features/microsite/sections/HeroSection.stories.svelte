@@ -20,14 +20,16 @@
 			height: 1430,
 			focalX: 0.7,
 			focalY: 0.4
-		}
+		},
+		bookingAnchor: '#booking'
 	};
 
 	const bare: HeroData = {
 		name: 'The Old Rice Mill Guesthouse and Garden Residence at the Edge of the Village',
 		tagline: null,
 		locationLabel: null,
-		image: null
+		image: null,
+		bookingAnchor: null
 	};
 </script>
 
