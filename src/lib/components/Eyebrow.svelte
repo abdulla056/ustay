@@ -6,7 +6,7 @@
 
 	type Props = HTMLAttributes<HTMLElement> & {
 		/** Render target. `h2`–`h6` when the eyebrow is the section's real heading; styling is identical. */
-		as?: 'p' | 'span' | 'div' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6';
+		as?: 'p' | 'span' | 'div' | 'dt' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6';
 		/** `inherit` is right over photography; `accent` on a paper surface. */
 		tone?: 'inherit' | 'accent' | 'muted';
 		children?: Snippet;

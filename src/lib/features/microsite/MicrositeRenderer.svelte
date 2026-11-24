@@ -9,7 +9,7 @@
 
 	// The registry is exhaustive per type, but a union of components cannot be called with a
 	// union of props; the pairing is guaranteed by `SectionView` being discriminated on `type`.
-	type AnySection = Component<{ data: unknown; variant: string }>;
+	type AnySection = Component<{ data: unknown; variant: string; number?: string | null }>;
 
 	type Props = {
 		view: MicrositeView;
@@ -19,15 +19,22 @@
 	let { view, components = sectionComponents as unknown as Record<string, AnySection> }: Props =
 		$props();
 
+	// The editorial spine ("01", "02"...) is numbered by position among the sections that carry one.
+	const unnumbered = new Set(['hero', 'booking_cta']);
+	const numbers = $derived.by(() => {
+		let n = 0;
+		return view.sections.map((s) => (unnumbered.has(s.type) ? null : String(++n).padStart(2, '0')));
+	});
+
 	function onerror(error: unknown) {
 		if (import.meta.env.DEV) console.error('[microsite] a section failed to render', error);
 	}
 </script>
 
-{#each view.sections as section (section.type)}
+{#each view.sections as section, i (section.type)}
 	{@const Section = components[section.type]}
 	<svelte:boundary {onerror}>
-		<Section data={section.data} variant={section.variant} />
+		<Section data={section.data} variant={section.variant} number={numbers[i]} />
 		{#snippet failed()}{/snippet}
 	</svelte:boundary>
 {/each}

@@ -181,12 +181,14 @@ and there are no ids, owner ids, emails or token hashes. A section with nothing 
 by the loader; the rule per type is in the header of `load.ts`.
 
 **How a section plugs in.** A section is a component that takes `SectionProps<T>`
-(`{ data, variant }`) and carries `data-section="<type>"` on its root. To add or replace one:
+(`{ data, variant, number? }`) and carries `data-section="<type>"` on its root. To add or replace one:
 put the component in `$lib/features/microsite/sections/`, register it in `sections.ts` (the
 registry type is exhaustive over `SECTION_TYPES`, so a missing entry fails `bun run check`), and
 add its data type to `SectionDataMap` plus a builder in `load.ts`. The renderer wraps every section
 in `<svelte:boundary>`, so on the client one throwing section renders nothing instead of breaking
-the page (boundaries do not catch server-render errors).
+the page (boundaries do not catch server-render errors). `number` is the editorial spine number
+("01", "02"...) the renderer assigns by position in render order, skipping `hero` and
+`booking_cta` (null there); a section with a spine label shows it, any other ignores it.
 
 **Markdown rule.** Owner-authored markdown (the story body, the host bio) becomes HTML only in
 `$lib/server/microsite/markdown.ts`: `markdown-it` with `html: false` and its default link

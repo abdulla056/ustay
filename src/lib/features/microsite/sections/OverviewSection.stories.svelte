@@ -27,6 +27,7 @@
 			'Rumah Kabus sits above the tea terraces at Tanah Rata, a short walk from the old trails. Every room looks out over the hills, and the mornings begin slowly.',
 			'Breakfast is cooked on the wood-fired range and served at one long table. The hosts will point you to the quieter paths.'
 		],
+		placeLabel: 'Tanah Rata, Pahang',
 		roomCount: 4,
 		maxGuests: 4,
 		fromPrice: { amountMinor: 28000, currency: 'MYR' },
@@ -71,6 +72,7 @@
 		type: 'rental',
 		shortDescription: null,
 		paragraphs: [],
+		placeLabel: null,
 		roomCount: 0,
 		maxGuests: null,
 		fromPrice: null,

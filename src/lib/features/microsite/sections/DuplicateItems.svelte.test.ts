@@ -63,6 +63,7 @@ describe('sections with duplicate list items', () => {
 				type: 'homestay',
 				shortDescription: null,
 				paragraphs: ['Same.', 'Same.'],
+				placeLabel: null,
 				roomCount: 0,
 				maxGuests: null,
 				fromPrice: null,
