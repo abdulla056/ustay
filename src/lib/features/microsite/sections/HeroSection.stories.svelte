@@ -3,12 +3,6 @@
 	import HeroSection from './HeroSection.svelte';
 	import type { HeroData } from '../types';
 
-	const { Story } = defineMeta({
-		title: 'Microsite/Hero',
-		component: HeroSection,
-		parameters: { layout: 'fullscreen' }
-	});
-
 	const rumahKabus: HeroData = {
 		name: 'Rumah Kabus',
 		tagline: 'A quiet house above the cloud line, where the mornings arrive slowly.',
@@ -31,13 +25,16 @@
 		image: null,
 		bookingAnchor: null
 	};
+
+	const { Story } = defineMeta({
+		title: 'Microsite/Hero',
+		component: HeroSection,
+		parameters: { layout: 'fullscreen' },
+		args: { data: rumahKabus, variant: 'default' }
+	});
 </script>
 
-<Story name="Rumah Kabus">
-	<HeroSection data={rumahKabus} variant="default" />
-</Story>
+<Story name="Rumah Kabus" />
 
-<!-- Long name, no tagline, no place label, no photograph. -->
-<Story name="Edge case: long name, no optional fields">
-	<HeroSection data={bare} variant="default" />
-</Story>
+<!-- Long name, no tagline, no place label, no photograph, no booking section. -->
+<Story name="Edge case: long name, no optional fields" args={{ data: bare }} />
