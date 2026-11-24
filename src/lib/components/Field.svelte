@@ -4,13 +4,13 @@
 	// error sits below it, and both are wired to the input through `aria-describedby`.
 	//
 	// An `error` also sets `aria-invalid`. Attributes not named here (`required`,
-	// `autocomplete`, `disabled`, …) pass straight through to the `<input>`.
+	// `autocomplete`, `disabled`, `min`, `max`, `step`, …) pass straight through to the `<input>`.
 	import type { HTMLInputAttributes } from 'svelte/elements';
 
 	type Props = Omit<HTMLInputAttributes, 'type' | 'value'> & {
 		label: string;
 		name: string;
-		type?: 'text' | 'email' | 'password';
+		type?: 'text' | 'email' | 'password' | 'date' | 'number';
 		value?: string;
 		/** Validation message. Replaces the hint and marks the input `aria-invalid`. */
 		error?: string;

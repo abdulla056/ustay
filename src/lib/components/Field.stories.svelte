@@ -8,7 +8,7 @@
 		tags: ['autodocs'],
 		args: { label: 'Email', name: 'email', type: 'email' },
 		argTypes: {
-			type: { control: 'inline-radio', options: ['text', 'email', 'password'] },
+			type: { control: 'inline-radio', options: ['text', 'email', 'password', 'date', 'number'] },
 			label: { control: 'text' },
 			hint: { control: 'text' },
 			error: { control: 'text' }
@@ -25,4 +25,11 @@
 <Story
 	name="Password"
 	args={{ label: 'Password', name: 'password', type: 'password', hint: 'At least 8 characters.' }}
+/>
+
+<Story name="Date" args={{ label: 'Check-in', name: 'checkIn', type: 'date', min: '2026-01-01' }} />
+
+<Story
+	name="Number"
+	args={{ label: 'Adults', name: 'adults', type: 'number', min: 1, max: 8, value: '2' }}
 />

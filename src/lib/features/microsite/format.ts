@@ -19,3 +19,8 @@ export function formatMoney({ amountMinor, currency }: Money, locale = 'en-MY'):
 		maximumFractionDigits: digits
 	}).format(major);
 }
+
+/** Local calendar date as `YYYY-MM-DD` (what `<input type="date">` uses). */
+export function toIsoDate(date: Date): string {
+	return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
