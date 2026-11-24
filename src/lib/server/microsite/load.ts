@@ -248,6 +248,8 @@ async function loadInSnapshot(slug: string, tx: Executor): Promise<LoadMicrosite
 					: null,
 			distanceMeters: a.distanceMeters,
 			url: a.url,
+			latitude: a.latitude,
+			longitude: a.longitude,
 			image: image ? frame(image) : null
 		};
 	});

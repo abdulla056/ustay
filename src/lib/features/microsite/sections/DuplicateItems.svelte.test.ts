@@ -34,6 +34,8 @@ describe('sections with duplicate list items', () => {
 			hostNote: null,
 			travel: null,
 			distanceMeters: null,
+			latitude: null,
+			longitude: null,
 			url: null,
 			image: null
 		};
