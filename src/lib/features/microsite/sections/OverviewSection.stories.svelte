@@ -3,16 +3,6 @@
 	import OverviewSection from './OverviewSection.svelte';
 	import type { OverviewData } from '../types';
 
-	// The reveal rises content in over ~1s; the a11y check must see it settled, not mid-fade.
-	const settled = async ({ canvasElement }: { canvasElement: HTMLElement }) => {
-		const started = Date.now();
-		const pending = () =>
-			[...canvasElement.querySelectorAll<HTMLElement>('*')].some(
-				(el) => getComputedStyle(el).opacity !== '1'
-			);
-		while (pending() && Date.now() - started < 5000) await new Promise((r) => setTimeout(r, 100));
-	};
-
 	const { Story } = defineMeta({
 		title: 'Microsite/Sections/Overview',
 		component: OverviewSection,
@@ -97,10 +87,6 @@
 	};
 </script>
 
-<Story name="Rumah Kabus" args={{ data: rumahKabus, variant: 'default' }} play={settled} />
-<Story
-	name="Sparse (no rooms, no reviews)"
-	args={{ data: sparse, variant: 'default' }}
-	play={settled}
-/>
-<Story name="Long text" args={{ data: longText, variant: 'default' }} play={settled} />
+<Story name="Rumah Kabus" args={{ data: rumahKabus, variant: 'default' }} />
+<Story name="Sparse (no rooms, no reviews)" args={{ data: sparse, variant: 'default' }} />
+<Story name="Long text" args={{ data: longText, variant: 'default' }} />
