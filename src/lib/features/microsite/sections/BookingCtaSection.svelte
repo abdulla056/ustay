@@ -63,7 +63,15 @@
 	}
 </script>
 
-<Section tone="inverse" label="Request to stay" space="lg" id="booking" data-section="booking_cta">
+<Section
+	tone="inverse"
+	label="Request to stay"
+	space="lg"
+	id="booking"
+	tabindex={-1}
+	class="outline-none focus-visible:outline focus-visible:-outline-offset-4 focus-visible:outline-accent-c"
+	data-section="booking_cta"
+>
 	<Container size="wide">
 		<div class="grid gap-12 lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)] lg:gap-20">
 			<div {@attach reveal()}>
