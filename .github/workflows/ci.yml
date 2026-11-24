@@ -57,12 +57,7 @@ jobs:
       # browser-only install rather than failing the whole job. `timeout 120`
       # stops apt's DNS retries from stalling the job for ~10 minutes.
       - name: Install Playwright chromium
-        # vitest's browser provider uses the `playwright` package (1.62), whose chromium revision
-        # differs from the `@playwright/test` one that `bunx playwright` resolves to (1.65), so run
-        # the `playwright` package's own CLI. Otherwise a cold cache leaves the wrong browser.
-        run: |
-          PW="node node_modules/playwright/cli.js"
-          timeout 120 $PW install --with-deps chromium || $PW install chromium
+        run: timeout 120 bunx playwright install --with-deps chromium || bunx playwright install chromium
 
       - name: Type-check
         run: bun run check
