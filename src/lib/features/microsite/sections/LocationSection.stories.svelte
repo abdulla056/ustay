@@ -74,11 +74,6 @@
 		]
 	};
 
-	// Entrance motion fades content in; axe must see the settled state, not a mid-fade frame.
-	const settle = async () => {
-		await new Promise((resolve) => setTimeout(resolve, 2500));
-	};
-
 	const { Story } = defineMeta({
 		title: 'Microsite/Sections/Location',
 		component: LocationSection,
@@ -86,14 +81,9 @@
 	});
 </script>
 
-<Story
-	play={settle}
-	name="Rumah Kabus (approximate)"
-	args={{ data: rumahKabus, variant: 'default' }}
-/>
+<Story name="Rumah Kabus (approximate)" args={{ data: rumahKabus, variant: 'default' }} />
 
 <Story
-	play={settle}
 	name="Exact location"
 	args={{
 		data: {
@@ -109,7 +99,6 @@
 />
 
 <Story
-	play={settle}
 	name="Edge: no coordinates, one attraction, no summary"
 	args={{
 		data: {

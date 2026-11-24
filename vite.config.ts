@@ -131,7 +131,14 @@ export default defineConfig({
 					browser: {
 						enabled: true,
 						headless: true,
-						provider: playwright({ launchOptions: unthrottledChromium }),
+						// Stories are checked by axe for contrast. Under motion, `reveal()` fades content
+						// in, so axe would measure half-transparent text. Emulating reduced motion makes
+						// every `$lib/motion` utility render its final, static state, which is also the
+						// state the a11y rules must hold for. Motion itself is tested in `client`.
+						provider: playwright({
+							launchOptions: unthrottledChromium,
+							contextOptions: { reducedMotion: 'reduce' }
+						}),
 						instances: [{ browser: 'chromium' }]
 					}
 				}

@@ -71,12 +71,7 @@
 		title: 'Microsite/AmenitiesSection',
 		component: AmenitiesSection,
 		parameters: { layout: 'fullscreen' },
-		args: { data: rumahKabus, variant: 'default' },
-		// The reveal fades content in (1.1s); the a11y check runs after `play`, so let it settle or
-		// axe measures contrast against half-transparent text.
-		play: async () => {
-			await new Promise((resolve) => setTimeout(resolve, 1600));
-		}
+		args: { data: rumahKabus, variant: 'default' }
 	});
 </script>
 
