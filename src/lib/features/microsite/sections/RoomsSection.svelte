@@ -17,7 +17,8 @@
 	import { onDestroy, onMount, tick } from 'svelte';
 	import { Container, Eyebrow, Heading, Image, Section, Stack, Text } from '$lib';
 	import { objectPosition } from '$lib/features/gallery/layouts';
-	import { getSmoothScroller, reveal } from '$lib/motion';
+	import { lockScroll, reveal } from '$lib/motion';
+	import { amenityIcon } from './amenities/icons';
 	import { formatMoney } from '../format';
 	import type { RoomView, SectionProps } from '../types';
 
@@ -34,53 +35,62 @@
 		enhanced = true;
 	});
 
-	function bedLabel({ type, count }: { type: string; count: number }) {
-		if (type === 'sofa') return count === 1 ? 'sofa bed' : `${count} sofa beds`;
-		if (type === 'bunk') return count === 1 ? 'bunk bed' : `${count} bunk beds`;
-		return count === 1 ? `${type} bed` : `${count} ${type} beds`;
-	}
+	const bedLabel = ({ type, count }: { type: string; count: number }) =>
+		count === 1 ? `${type} bed` : `${count} ${type} beds`;
 
 	const beds = (room: RoomView) => room.beds.map(bedLabel).join(' · ');
 	const guests = (room: RoomView) => `Sleeps ${room.maxGuests}`;
 
-	let releaseScroll: (() => void) | undefined;
+	let unlockScroll: (() => void) | undefined;
+	let opener: HTMLElement | undefined;
+	// Set synchronously, before the first await, so a double click cannot open twice.
+	let opening = false;
 
-	function lockScroll() {
-		if (releaseScroll) return;
-		const root = document.documentElement;
-		const previous = root.style.overflow;
-		const lenis = getSmoothScroller();
-		lenis?.stop();
-		root.style.overflow = 'hidden';
-		releaseScroll = () => {
-			root.style.overflow = previous;
-			lenis?.start();
-			releaseScroll = undefined;
-		};
-	}
-
-	async function open(room: RoomView) {
-		if (!dialog || dialog.open) return;
+	async function open(room: RoomView, trigger: HTMLElement) {
+		if (!dialog || dialog.open || opening) return;
+		opening = true;
+		opener = trigger;
 		selected = room;
 		await tick();
+		opening = false;
 		dialog.showModal();
-		lockScroll();
+		unlockScroll ??= lockScroll();
 		dialog.scrollTop = 0;
 		closeButton?.focus();
 	}
 
 	function onclose() {
-		releaseScroll?.();
+		unlockScroll?.();
+		unlockScroll = undefined;
 		selected = undefined;
+		// Explicit, like NavMenu: do not rely on the browser's own restore.
+		opener?.focus();
+		opener = undefined;
 	}
 
-	// A click on the backdrop lands on the <dialog> itself, not on its content.
+	// Drag-selecting text inside the dialog and releasing over the backdrop must not close it:
+	// both the press and the click have to land on the backdrop (the <dialog> itself).
+	let pressedOnBackdrop = false;
+
+	function onmousedown(event: MouseEvent) {
+		pressedOnBackdrop = event.target === dialog;
+	}
+
 	function onclick(event: MouseEvent) {
-		if (event.target === dialog) dialog?.close();
+		if (event.target === dialog && pressedOnBackdrop) dialog?.close();
+		pressedOnBackdrop = false;
 	}
 
-	onDestroy(() => releaseScroll?.());
+	onDestroy(() => unlockScroll?.());
 </script>
+
+<svelte:head>
+	<!-- Without JS the clamp and the reserved "View room" line would hide or mislead: undo both. -->
+	<noscript>
+		<!-- eslint-disable-next-line svelte/no-at-html-tags -- a static literal, no user data -->
+		{@html '<style>[data-section="rooms"] .room-desc{display:block;overflow:visible;-webkit-line-clamp:unset;line-clamp:unset}[data-section="rooms"] .room-cta{display:none}</style>'}
+	</noscript>
+</svelte:head>
 
 <Section label="Rooms" space="md" data-section="rooms">
 	<Container size="wide">
@@ -131,7 +141,7 @@
 										type="button"
 										aria-haspopup="dialog"
 										class="cursor-pointer text-left transition-colors duration-700 ease-editorial group-hover:text-accent-c after:absolute after:inset-0 after:content-[''] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-current motion-reduce:transition-none"
-										onclick={() => open(room)}
+										onclick={(event) => open(room, event.currentTarget)}
 									>
 										{room.name}
 									</button>
@@ -139,28 +149,31 @@
 									{room.name}
 								{/if}
 							</Heading>
-							<p class="shrink-0 font-body text-base tabular-nums">
+							<p class="relative z-10 shrink-0 font-body text-base tabular-nums">
 								{formatMoney(room.nightly)}
 								<span class="text-content-muted">a night</span>
 							</p>
 						</div>
 
-						<Text size="sm" tone="muted" class="mt-2">
+						<Text size="sm" tone="muted" class="relative z-10 mt-2">
 							{[guests(room), beds(room)].filter(Boolean).join(' · ')}
 						</Text>
 
 						{#if room.description}
-							<Text size="sm" class={['mt-3', enhanced && 'line-clamp-3']}>{room.description}</Text>
+							<Text size="sm" class="room-desc relative z-10 mt-3 line-clamp-3"
+								>{room.description}</Text
+							>
 						{/if}
 
-						{#if enhanced}
-							<span
-								aria-hidden="true"
-								class="mt-4 font-body text-label font-medium tracking-label text-accent-c uppercase"
-							>
-								View room
-							</span>
-						{/if}
+						<span
+							aria-hidden="true"
+							class={[
+								'room-cta mt-4 font-body text-label font-medium tracking-label text-accent-c uppercase',
+								!enhanced && 'invisible'
+							]}
+						>
+							View room
+						</span>
 					</article>
 				{/each}
 			</div>
@@ -174,6 +187,7 @@
 		data-lenis-prevent
 		{onclose}
 		{onclick}
+		{onmousedown}
 	>
 		{#if selected}
 			{@const room = selected}
@@ -193,17 +207,22 @@
 					</button>
 				</div>
 
-				{#if room.image}
-					<Image
-						src={room.image.src}
-						alt={room.image.alt}
-						width={room.image.width}
-						height={room.image.height}
-						style="object-position: {objectPosition(room.image)}"
-						ratio="16/9"
-						rounded="none"
-						class="mt-8"
-					/>
+				{#if room.images.length > 0}
+					<div class="mt-8 grid gap-3 sm:grid-cols-2">
+						{#each room.images as image, k (k)}
+							<Image
+								src={image.src}
+								alt={image.alt}
+								width={image.width}
+								height={image.height}
+								style="object-position: {objectPosition(image)}"
+								ratio={k === 0 ? '16/9' : '4/3'}
+								rounded="none"
+								loading={k === 0 ? 'eager' : 'lazy'}
+								class={k === 0 ? 'sm:col-span-2' : undefined}
+							/>
+						{/each}
+					</div>
 				{/if}
 
 				<div class="mt-8 grid gap-10 md:grid-cols-[3fr_2fr]">
@@ -221,7 +240,15 @@
 							<Eyebrow>In the room</Eyebrow>
 							<ul class="mt-3 border-t border-hairline-c">
 								{#each room.amenities as amenity, j (j)}
-									<li class="border-b border-hairline-c py-3 font-body text-sm">
+									{@const Icon = amenityIcon(amenity.icon)}
+									<li
+										class="flex items-center gap-3 border-b border-hairline-c py-3 font-body text-sm"
+									>
+										<Icon
+											class="size-icon shrink-0 text-accent-c"
+											strokeWidth={1.25}
+											aria-hidden="true"
+										/>
 										{amenity.name}
 									</li>
 								{/each}

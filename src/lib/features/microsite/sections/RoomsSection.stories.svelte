@@ -21,6 +21,10 @@
 				beds: [{ type: 'king', count: 1 }],
 				nightly: { amountMinor: 42000, currency: 'MYR' },
 				image: photo('/prototype/misty-lake.jpg', 'A king bed under old rafters'),
+				images: [
+					photo('/prototype/misty-lake.jpg', 'A king bed under old rafters'),
+					photo('/prototype/foggy-forest.jpg', 'Fog on the estate terraces')
+				],
 				amenities: [
 					{ name: 'Wi-Fi', icon: 'wifi' },
 					{ name: 'Hot water', icon: 'hot-water' },
@@ -38,6 +42,7 @@
 				],
 				nightly: { amountMinor: 36000, currency: 'MYR' },
 				image: photo('/prototype/forest-light.jpg', 'A garden room opening onto the lawn'),
+				images: [photo('/prototype/forest-light.jpg', 'A garden room opening onto the lawn')],
 				amenities: [
 					{ name: 'Wi-Fi', icon: 'wifi' },
 					{ name: 'Bathtub', icon: 'bathtub' }
@@ -54,6 +59,7 @@
 				],
 				nightly: { amountMinor: 89000, currency: 'MYR' },
 				image: null,
+				images: [],
 				amenities: [{ name: 'Kitchenette', icon: 'kitchen' }]
 			}
 		]
@@ -68,16 +74,12 @@
 				beds: [],
 				nightly: { amountMinor: 12050, currency: 'MYR' },
 				image: null,
+				images: [],
 				amenities: []
 			}
 		]
 	};
-
-	// reveal() fades content in; let it finish so the a11y check never sees mid-fade text.
-	const play = async () => {
-		await new Promise((resolve) => setTimeout(resolve, 3000));
-	};
 </script>
 
-<Story name="Rumah Kabus" args={{ data: rumahKabus, variant: 'default' }} {play} />
-<Story name="Edge: no images, no description" args={{ data: edge, variant: 'default' }} {play} />
+<Story name="Rumah Kabus" args={{ data: rumahKabus, variant: 'default' }} />
+<Story name="Edge: no images, no description" args={{ data: edge, variant: 'default' }} />

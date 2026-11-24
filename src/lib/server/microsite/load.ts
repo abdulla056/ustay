@@ -172,17 +172,21 @@ async function loadInSnapshot(slug: string, tx: Executor): Promise<LoadMicrosite
 	const heroImage = heroFrame ?? galleryFrames[0] ?? null;
 
 	// --- Rooms and prices ---
-	const roomViews: RoomView[] = rooms.map((r) => ({
-		name: r.name,
-		description: r.description,
-		maxGuests: r.maxGuests,
-		beds: r.beds.map((b) => ({ type: b.type, count: b.count })),
-		nightly: money(r.nightlyRateMinor),
-		image: frames(roomMedia.filter((m) => m.roomId === r.id))[0] ?? null,
-		amenities: roomAmenities
-			.filter((a) => a.roomId === r.id)
-			.map((a) => ({ name: a.name, icon: a.icon }))
-	}));
+	const roomViews: RoomView[] = rooms.map((r) => {
+		const images = frames(roomMedia.filter((m) => m.roomId === r.id));
+		return {
+			name: r.name,
+			description: r.description,
+			maxGuests: r.maxGuests,
+			beds: r.beds.map((b) => ({ type: b.type, count: b.count })),
+			nightly: money(r.nightlyRateMinor),
+			images,
+			image: images[0] ?? null,
+			amenities: roomAmenities
+				.filter((a) => a.roomId === r.id)
+				.map((a) => ({ name: a.name, icon: a.icon }))
+		};
+	});
 	const rates = rooms.map((r) => r.nightlyRateMinor);
 	const lowest = rates.length ? Math.min(...rates) : null;
 	const highest = rates.length ? Math.max(...rates) : null;

@@ -90,3 +90,5 @@ export type { RevealOptions, DisplayEntranceOptions } from './reveal';
 
 export { imageReveal, parallax } from './media';
 export type { ImageRevealOptions, ParallaxOptions } from './media';
+
+export { lockScroll } from './scroll-lock';

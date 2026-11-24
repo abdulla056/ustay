@@ -15,6 +15,7 @@ describe('sections with duplicate list items', () => {
 			beds: [],
 			nightly: { amountMinor: 28000, currency: 'MYR' },
 			image: null,
+			images: [],
 			amenities: []
 		};
 		const screen = render(RoomsSection, {

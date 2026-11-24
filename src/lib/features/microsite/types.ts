@@ -110,7 +110,10 @@ export type RoomView = {
 	maxGuests: number;
 	beds: { type: string; count: number }[];
 	nightly: Money;
+	/** The first of `images`, or null. */
 	image: GalleryFrame | null;
+	/** All of the room's photographs, in placement order. */
+	images: GalleryFrame[];
 	amenities: { name: string; icon: string }[];
 };
 
