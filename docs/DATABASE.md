@@ -188,6 +188,14 @@ Rules:
   coordinates rounded to two decimals (about 1 km), with no address lines or postal code.
 - **`destination`** is platform-curated (not per-owner): `slug` (unique), `name`, `region`,
   `country_code` (ISO 3166-1 alpha-2, CHECK `^[A-Z]{2}$`), `summary`. No media yet (Phase 5).
+- **`destination_slug_redirect`** mirrors `property_slug_redirect` (`old_slug` unique, `destination_id`
+  cascade, timestamps). `renameDestination(id, newName, { newSlug? })` runs in one transaction with
+  the row locked, normalises and checks the slug, writes the old slug as a redirect, and drops the
+  redirect row when renaming back to an own retired slug. A slug is never reused: live slugs and
+  retired slugs of other destinations are rejected (`DestinationValidationError`, also for
+  `createDestination` and a lost race, never a raw 23505). `findDestinationRedirectTarget(oldSlug)`
+  resolves a retired slug to the current one in a single query (Phase 5 routes 301 on it). Chains
+  need no hops: every retired slug points at the destination, so A -> B -> C resolves both to C.
 - **`property_location`** is 1:1 with `property` (`property_id` primary key, cascading FK). Address
   columns, `locality` and `country_code` required. Coordinates are plain `double precision`
   (no PostGIS) with a CHECK that both or neither are set, latitude in -90..90 and longitude in
