@@ -61,6 +61,20 @@ export const destination = pgTable(
 	]
 );
 
+/** Former slugs of a destination, so old links can 301 to the current one (decision #1). */
+export const destinationSlugRedirect = pgTable(
+	'destination_slug_redirect',
+	{
+		id: id(),
+		oldSlug: text('old_slug').notNull().unique(),
+		destinationId: uuidRef('destination_id')
+			.notNull()
+			.references(() => destination.id, { onDelete: 'cascade' }),
+		...timestamps()
+	},
+	(t) => [index('destination_slug_redirect_destination_id_idx').on(t.destinationId)]
+);
+
 export const propertyLocation = pgTable(
 	'property_location',
 	{

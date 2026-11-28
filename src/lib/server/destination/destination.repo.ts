@@ -6,7 +6,12 @@
 import { and, asc, eq } from 'drizzle-orm';
 import { db, type Executor } from '$lib/server/db';
 import { isUuid, pgErrorCode } from '$lib/server/db/helpers';
-import { destination, property, propertyLocation } from '$lib/server/db/schema';
+import {
+	destination,
+	destinationSlugRedirect,
+	property,
+	propertyLocation
+} from '$lib/server/db/schema';
 import { slugify, uniqueSlug } from '$lib/server/db/slug';
 import {
 	countryCode,
@@ -24,7 +29,7 @@ export type NewDestinationInput = Omit<
 	'id' | 'slug' | 'createdAt' | 'updatedAt'
 > & { slug?: string };
 
-/** Patch for {@link updateDestination}. The slug is not patchable here (renames need redirects). */
+/** Patch for {@link updateDestination}. The slug is not patchable here (use {@link renameDestination}). */
 export type DestinationPatch = Partial<Omit<NewDestinationInput, 'slug'>>;
 
 /** Thrown for blank names, bad country codes or wrong-typed fields. */
@@ -56,13 +61,25 @@ function clean(input: object) {
 	return out;
 }
 
-async function isSlugTaken(candidate: string, tx: Executor) {
-	const [row] = await tx
+/**
+ * Is `candidate` unavailable as a slug? A live slug is taken, and so is a retired one, so a slug
+ * that was once used is never handed to another destination. `exceptDestinationId` lets a rename
+ * reuse its own current slug and its own retired slugs.
+ */
+async function isSlugTaken(candidate: string, tx: Executor, exceptDestinationId?: string) {
+	const [live] = await tx
 		.select({ id: destination.id })
 		.from(destination)
 		.where(eq(destination.slug, candidate))
 		.limit(1);
-	return row !== undefined;
+	if (live && live.id !== exceptDestinationId) return true;
+
+	const [retired] = await tx
+		.select({ destinationId: destinationSlugRedirect.destinationId })
+		.from(destinationSlugRedirect)
+		.where(eq(destinationSlugRedirect.oldSlug, candidate))
+		.limit(1);
+	return retired !== undefined && retired.destinationId !== exceptDestinationId;
 }
 
 /**
@@ -107,6 +124,21 @@ export async function findDestinationBySlug(slug: string, tx: Executor = db) {
 	return row;
 }
 
+/**
+ * Resolve a retired slug to its destination's current slug in one query. `undefined` if it was
+ * never a slug (or is a live slug: look that up with {@link findDestinationBySlug}).
+ */
+export async function findDestinationRedirectTarget(oldSlug: string, tx: Executor = db) {
+	if (typeof oldSlug !== 'string') return undefined;
+	const [row] = await tx
+		.select({ slug: destination.slug })
+		.from(destinationSlugRedirect)
+		.innerJoin(destination, eq(destinationSlugRedirect.destinationId, destination.id))
+		.where(eq(destinationSlugRedirect.oldSlug, oldSlug))
+		.limit(1);
+	return row?.slug;
+}
+
 /** `undefined` for an unknown or malformed id. */
 export async function findDestinationById(id: string, tx: Executor = db) {
 	if (!isUuid(id)) return undefined;
@@ -126,6 +158,70 @@ export async function updateDestination(id: string, patch: DestinationPatch, tx:
 	if (Object.keys(values).length === 0) return findDestinationById(id, tx);
 	const [row] = await tx.update(destination).set(values).where(eq(destination.id, id)).returning();
 	return row;
+}
+
+/**
+ * Rename a destination. Runs in one transaction, locking the row first. `newSlug` (optional) is
+ * normalised with `slugify`; otherwise one is generated from the new name. If the slug changes,
+ * the old one is written to the redirect table. Renaming back to one of the destination's own
+ * retired slugs removes that redirect row. A slug that is empty after normalising, or live or
+ * retired for another destination (also when a concurrent writer wins the race), is a
+ * {@link DestinationValidationError}; an unknown id is a {@link DestinationNotFoundError}.
+ */
+export async function renameDestination(
+	id: string,
+	newName: string,
+	opts: { newSlug?: string } = {}
+) {
+	const name = requiredText(newName, 'name', fail);
+	if (!isUuid(id)) throw new DestinationNotFoundError(String(id));
+	try {
+		return await db.transaction(async (tx) => {
+			const [current] = await tx
+				.select({ slug: destination.slug })
+				.from(destination)
+				.where(eq(destination.id, id))
+				.limit(1)
+				.for('update');
+			if (!current) throw new DestinationNotFoundError(id);
+
+			let newSlug: string;
+			if (opts.newSlug !== undefined) {
+				if (typeof opts.newSlug !== 'string') throw fail('slug must be a string');
+				newSlug = slugify(opts.newSlug);
+				if (newSlug === '') throw fail('slug must contain letters or digits');
+				if (await isSlugTaken(newSlug, tx, id)) throw fail(`slug "${newSlug}" is already taken`);
+			} else {
+				newSlug = await uniqueSlug(name, (c) => isSlugTaken(c, tx, id));
+			}
+
+			if (newSlug !== current.slug) {
+				// Renaming back to one of its own retired slugs: that redirect row is about to
+				// become the live slug, so it has to go first.
+				await tx
+					.delete(destinationSlugRedirect)
+					.where(
+						and(
+							eq(destinationSlugRedirect.oldSlug, newSlug),
+							eq(destinationSlugRedirect.destinationId, id)
+						)
+					);
+				await tx
+					.insert(destinationSlugRedirect)
+					.values({ oldSlug: current.slug, destinationId: id });
+			}
+
+			const [row] = await tx
+				.update(destination)
+				.set({ name, slug: newSlug })
+				.where(eq(destination.id, id))
+				.returning();
+			return row;
+		});
+	} catch (error) {
+		if (pgErrorCode(error) === '23505') throw fail('slug is already taken');
+		throw error;
+	}
 }
 
 /** Delete a destination; properties in it keep their location with no destination (set null). */

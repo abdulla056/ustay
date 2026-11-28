@@ -71,6 +71,13 @@
       "when": 1794848272730,
       "tag": "0009_tense_wallow",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1795860849886,
+      "tag": "0010_material_wolfpack",
+      "breakpoints": true
     }
   ]
 }

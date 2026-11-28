@@ -10,7 +10,12 @@ import { user } from './auth.schema';
 import { amenity, propertyAmenity, roomAmenity } from './amenity.schema';
 import { bookingMessage, bookingRequest } from './booking.schema';
 import { hostProfile } from './host.schema';
-import { attraction, destination, propertyLocation } from './location.schema';
+import {
+	attraction,
+	destination,
+	destinationSlugRedirect,
+	propertyLocation
+} from './location.schema';
 import { micrositeConfig, micrositeSection } from './microsite.schema';
 import { mediaAsset, propertyMedia, roomMedia } from './media.schema';
 import { property, propertySlugRedirect } from './property.schema';
@@ -75,7 +80,15 @@ export const propertyLocationRelations = relations(propertyLocation, ({ one }) =
 }));
 
 export const destinationRelations = relations(destination, ({ many }) => ({
-	locations: many(propertyLocation)
+	locations: many(propertyLocation),
+	slugRedirects: many(destinationSlugRedirect)
+}));
+
+export const destinationSlugRedirectRelations = relations(destinationSlugRedirect, ({ one }) => ({
+	destination: one(destination, {
+		fields: [destinationSlugRedirect.destinationId],
+		references: [destination.id]
+	})
 }));
 
 export const attractionRelations = relations(attraction, ({ one }) => ({
